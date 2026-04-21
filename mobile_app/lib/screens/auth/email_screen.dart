@@ -28,8 +28,8 @@ class _EmailScreenState extends State<EmailScreen> {
   }
 
   Future<void> _continue() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _loading = true);
     try {
       final result = await apiService.sendOtp(_emailController.text.trim());
@@ -71,7 +71,10 @@ class _EmailScreenState extends State<EmailScreen> {
                   if (context.canPop())
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: GestureDetector(
+                      child: InkWell(
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
                         onTap: () => context.pop(),
                         child: const Icon(Icons.arrow_back_ios, size: 20),
                       ),

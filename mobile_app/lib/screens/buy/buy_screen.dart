@@ -166,7 +166,10 @@ class _BuyScreenState extends State<BuyScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Buy'),
-        leading: GestureDetector(
+        leading: InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
           onTap: () => context.pop(),
           child: const Icon(Icons.arrow_back_ios, size: 20),
         ),
@@ -192,7 +195,10 @@ class _BuyScreenState extends State<BuyScreen> {
                 final color = _assetColor(code);
                 final desc = _assetDescription(code);
 
-                return GestureDetector(
+                return InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
                   onTap: () => setState(() {
                     _selectedAsset = code;
                     _quote = null;
@@ -456,7 +462,10 @@ class _SellScreenState extends State<SellScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sell'),
-        leading: GestureDetector(
+        leading: InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
           onTap: () => context.pop(),
           child: const Icon(Icons.arrow_back_ios, size: 20),
         ),
@@ -480,7 +489,10 @@ class _SellScreenState extends State<SellScreen> {
                 children: kAssetList.map((code) {
                   final a = kAssets[code]!;
                   final selected = _selectedAsset == code;
-                  return GestureDetector(
+                  return InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
                     onTap: () => setState(() => _selectedAsset = code),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -696,7 +708,10 @@ class _Sep24WebViewState extends State<Sep24WebView> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
-        leading: GestureDetector(
+        leading: InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
           onTap: () {
             widget.onComplete(false);
             Navigator.pop(context);

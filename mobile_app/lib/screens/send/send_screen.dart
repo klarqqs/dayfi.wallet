@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/widgets/app_bottomsheet.dart';
@@ -12,7 +13,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_background.dart';
 
 class SendScreen extends ConsumerStatefulWidget {
-  const SendScreen({super.key});
+  final String? initialAsset;
+  const SendScreen({super.key, this.initialAsset});
 
   @override
   ConsumerState<SendScreen> createState() => _SendScreenState();
@@ -34,6 +36,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialAsset != null) {
+      _selectedAsset = widget.initialAsset!;
+    }
     _amountController.addListener(_validateAmount);
   }
 
@@ -94,8 +99,16 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       _resolvedRecipient = null;
     });
     try {
-      final result = await apiService.resolveRecipient(value);
-      if (mounted) setState(() => _resolvedRecipient = result);
+      final result = await ref
+          .read(walletProvider.notifier)
+          .resolveRecipient(value);
+      if (mounted) {
+        if (result != null) {
+          setState(() => _resolvedRecipient = result);
+        } else {
+          setState(() => _recipientError = 'Username or address not found');
+        }
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _recipientError = 'Username or address not found');
@@ -128,40 +141,50 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
     // Show loading dialog that persists
     if (!mounted) return;
-    showDialog(
+
+    showDayFiBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => WillPopScope(
-        onWillPop: () async => false,
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
+      isDismissible: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 24),
+
+            const SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(strokeWidth: 3),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  height: 40,
-                  width: 40,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Sending...',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Processing your payment',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Sending...',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1,
+                height: 1.1,
+              ),
             ),
-          ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              'Processing your payment',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: 17,
+                letterSpacing: -.5,
+                height: 1.3,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 32),
+          ],
         ),
       ),
     );
@@ -210,7 +233,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 // Retry
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: Size(MediaQuery.of(context).size.width, 50),
+                    minimumSize: Size(MediaQuery.of(context).size.width, 48),
                     side: BorderSide(
                       color: Theme.of(
                         context,
@@ -331,7 +354,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             // ── Done button ─────────────────────────────────
             OutlinedButton(
               style: OutlinedButton.styleFrom(
-                minimumSize: Size(MediaQuery.of(context).size.width, 50),
+                minimumSize: Size(MediaQuery.of(context).size.width, 48),
                 side: BorderSide(
                   color: Theme.of(
                     context,
@@ -395,7 +418,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                     letterSpacing: -.1,
                   ),
                 ),
-                GestureDetector(
+                InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
                   onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.close),
                 ),
@@ -405,7 +431,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             ...assets.map((assetCode) {
               final asset = kAssets[assetCode]!;
 
-              return GestureDetector(
+              return InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
                 onTap: () {
                   setState(() {
                     _selectedAsset = assetCode;
@@ -500,7 +529,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -538,7 +570,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 Center(
                   child: SizedBox(
                     width: (MediaQuery.of(context).size.width * .5) - 8,
-                    child: GestureDetector(
+                    child: InkWell(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
                       onTap: _showAssetPicker,
                       child: _DropdownBox(
                         emoji: kAssets[_selectedAsset]!.emoji,
@@ -609,12 +644,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                             ),
                           )
                         : _resolvedRecipient != null
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.all(12),
-                            child: Icon(
-                              Icons.check_circle,
+                            child: SvgPicture.asset(
+                              'assets/icons/svgs/circle_check.svg',
                               color: DayFiColors.green,
-                              size: 20,
+                              height: 16,
                             ),
                           )
                         : null,
@@ -700,7 +735,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 ).animate().fadeIn(delay: 100.ms),
 
                 const SizedBox(height: 4),
-                GestureDetector(
+                InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
                   onTap: () {
                     final maxAmount = _availableBalance(_selectedAsset);
                     _amountController.text = maxAmount.toStringAsFixed(
@@ -849,7 +887,7 @@ class _DropdownBox extends StatelessWidget {
         color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.050),
         ),
       ),
       child: Row(

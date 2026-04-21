@@ -120,101 +120,98 @@ class _BlurSheetScaffold extends StatelessWidget {
         ? DayFiColors.textMuted
         : DayFiColors.lightTextSecondary.withOpacity(0.35);
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isDismissible ? () => Navigator.of(context).pop() : null,
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (ctx, _) {
-          final t = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          ).value;
+    return Material(
+      type: MaterialType.transparency, // prevents the opaque background
 
-          return Stack(
-            children: [
-              // ── Layer 1: backdrop blur + scrim ────────────────────────
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8 * t, sigmaY: 8 * t),
-                  child: Container(
-                    color: scrimColor.withOpacity(scrimColor.opacity * t),
+      child: InkWell(
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        // behavior: HitTestBehavior.opaque,
+        onTap: isDismissible ? () => Navigator.of(context).pop() : null,
+        child: AnimatedBuilder(
+          animation: animation,
+          builder: (ctx, _) {
+            final t = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ).value;
+
+            return Stack(
+              children: [
+                // ── Layer 1: backdrop blur + scrim ────────────────────────
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8 * t, sigmaY: 8 * t),
+                    child: Container(
+                      color: scrimColor.withOpacity(scrimColor.opacity * t),
+                    ),
                   ),
                 ),
-              ),
 
-              // ── Layer 2: sheet sliding up ─────────────────────────────
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - t) * 300),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(32),
-                        ),
-                        boxShadow: [
-                          // Subtle glow using green accent
-                          BoxShadow(
-                            color: glowColor,
-                            blurRadius: 40,
-                            spreadRadius: 0,
-                            offset: const Offset(0, -12),
+                // ── Layer 2: sheet sliding up ─────────────────────────────
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - t) * 300),
+                    child: InkWell(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                      // behavior: HitTestBehavior.opaque,
+                      onTap: () {},
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(32),
                           ),
-                          // Depth shadow
-                          BoxShadow(
-                            color: Colors.black.withOpacity(
-                              isDark ? 0.40 : 0.08,
+                          boxShadow: [
+                            // Subtle glow using green accent
+                            BoxShadow(
+                              color: glowColor,
+                              blurRadius: 40,
+                              spreadRadius: 0,
+                              offset: const Offset(0, -12),
                             ),
-                            blurRadius: 32,
-                            offset: const Offset(0, -4),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(borderRadius),
+                            // Depth shadow
+                            BoxShadow(
+                              color: Colors.black.withOpacity(
+                                isDark ? 0.40 : 0.08,
+                              ),
+                              blurRadius: 32,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
                         ),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: sheetFill,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(borderRadius),
-                              ),
-                              border: Border(
-                                top: BorderSide(color: borderColor, width: 0.5),
-                                left: BorderSide(
-                                  color: borderColor,
-                                  width: 0.5,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(borderRadius),
+                          ),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: sheetFill,
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(borderRadius),
                                 ),
-                                right: BorderSide(
-                                  color: borderColor,
-                                  width: 0.5,
-                                ),
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const SizedBox(height: 14),
-                                // Drag handle using textMuted
-                                Container(
-                                  width: 36,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: handleColor,
-                                    borderRadius: BorderRadius.circular(2),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: borderColor,
+                                    width: 0.5,
+                                  ),
+                                  left: BorderSide(
+                                    color: borderColor,
+                                    width: 0.5,
+                                  ),
+                                  right: BorderSide(
+                                    color: borderColor,
+                                    width: 0.5,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                child,
-                              ],
+                              ),
+                              child: child,
                             ),
                           ),
                         ),
@@ -222,10 +219,10 @@ class _BlurSheetScaffold extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

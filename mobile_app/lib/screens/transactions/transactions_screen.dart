@@ -85,6 +85,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           _hasMore = _page < (pagination['pages'] ?? 1);
           _loading = false;
         });
+        _refreshCache();
       }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -96,6 +97,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _cachedFiltered = _transactions.where((tx) {
       final asset = (tx['asset'] as String?) ?? '';
       final type = (tx['type'] as String?) ?? '';
+      final swapToAsset = (tx['swapToAsset'] as String?) ?? '';
+      final swapFromAsset = (tx['swapFromAsset'] as String?) ?? '';
+
+      // Hide the incoming swap leg (the duplicate)
+      if (type == 'swap' && asset == swapToAsset && asset != swapFromAsset) {
+        return false;
+      }
 
       // Asset filter
       if (_selectedAssets.isNotEmpty && !_selectedAssets.contains(asset)) {
@@ -214,6 +222,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
           leading: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -272,7 +281,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Icon(
             Icons.swap_horiz,
             size: 48,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.050),
           ),
           const SizedBox(height: 16),
           Text(
@@ -297,10 +306,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildGroupedTransactionsList() {
-    final grouped = _groupTransactionsByDate(_transactions);
+    final grouped = _groupTransactionsByDate(_cachedFiltered);
     final dateLabels = grouped.keys.toList();
 
-    // Sort date labels: Today, Yesterday, then others by date
     dateLabels.sort((a, b) {
       if (a == 'Today') return -1;
       if (b == 'Today') return 1;
@@ -309,7 +317,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       return 0;
     });
 
-    // Build flat list of headers + tiles
     final items = <Map<String, dynamic>>[];
     int tileIndex = 0;
 
@@ -320,46 +327,62 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: items.length + (_hasMore ? 1 : 0),
-      itemBuilder: (ctx, i) {
-        if (i == items.length) {
-          return _buildLoadMore();
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scroll) {
+        if (scroll.metrics.pixels >= scroll.metrics.maxScrollExtent - 200 &&
+            _hasMore &&
+            !_loading) {
+          setState(() => _page++);
+          _load();
         }
-
-        final item = items[i];
-
-        if (item['type'] == 'header') {
-          return Padding(
-            padding: const EdgeInsets.only(top: 20, bottom: 8),
-            child: Text(
-              item['label'] as String,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          );
-        } else {
-          return _TxTile(
-            tx: item['tx'] as Map<String, dynamic>,
-            index: item['index'] as int,
-          );
-        }
+        return false;
       },
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length + (_hasMore ? 1 : 0),
+        itemBuilder: (ctx, i) {
+          if (i == items.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
+
+          final item = items[i];
+
+          if (item['type'] == 'header') {
+            return Padding(
+              padding: const EdgeInsets.only(top: 20, bottom: 8),
+              child: Text(
+                item['label'] as String,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            );
+          } else {
+            return _TxTile(
+              tx: item['tx'] as Map<String, dynamic>,
+              index: item['index'] as int,
+            );
+          }
+        },
+      ),
     );
   }
 
   void _showTypeFilter() {
     showDayFiBottomSheet(
       context: context,
-        // backgroundColor: Theme.of(context).colorScheme.surface,
-        // shape: const RoundedRectangleBorder(
-        //   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        // ),
-      child:  Padding(
+      // backgroundColor: Theme.of(context).colorScheme.surface,
+      // shape: const RoundedRectangleBorder(
+      //   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      // ),
+      child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -402,6 +425,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 _applyFilter('receive', _assetFilter);
               },
             ),
+            ListTile(
+              splashColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              title: const Text('Swapped'),
+              onTap: () {
+                Navigator.pop(context);
+                _applyFilter('swap', _assetFilter);
+              },
+            ),
           ],
         ),
       ),
@@ -411,8 +444,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void _showAssetFilter() {
     showDayFiBottomSheet(
       context: context,
-    
-      child:  Padding(
+
+      child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -500,24 +533,51 @@ class _FilterChip extends StatelessWidget {
 
 void _showTxDetails(BuildContext context, Map<String, dynamic> tx) {
   final isSend = tx['type'] == 'send';
+  final isSwap = tx['type'] == 'swap';
   final amount = (tx['amount'] as num).toDouble();
   final asset = tx['asset'] as String;
+  final swapToAsset = (tx['swapToAsset'] as String?) ?? '';
+  final swapToAmount = (tx['receivedAmount'] ?? tx['swapToAmount']) != null
+      ? ((tx['receivedAmount'] ?? tx['swapToAmount']) as num).toDouble()
+      : null;
   final createdAt = DateTime.tryParse(tx['createdAt'] ?? '') ?? DateTime.now();
-  final txHash = tx['stellarTxHash'] as String?; // your backend field name
+  final txHash = tx['stellarTxHash'] as String?;
   final memo = tx['memo'] as String?;
   final fee = tx['fee'] as String?;
 
   showDayFiBottomSheet(
     context: context,
-    child:  Padding(
+    child: Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Opacity(opacity: 0, child: Icon(Icons.close)),
+              Text(
+                'Details',
+                style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                  fontSize: 16,
+                  letterSpacing: -.1,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+
           SvgPicture.asset(
-            isSend
-                ? 'assets/icons/svgs/arrow_out.svg'
-                : 'assets/icons/svgs/arrow_in.svg',
+            isSwap
+                ? 'assets/icons/svgs/swap.svg'
+                : (isSend
+                      ? 'assets/icons/svgs/arrow_out.svg'
+                      : 'assets/icons/svgs/arrow_in.svg'),
             color: Theme.of(context).colorScheme.onSurface.withOpacity(.55),
             width: 24,
             height: 24,
@@ -527,9 +587,13 @@ void _showTxDetails(BuildContext context, Map<String, dynamic> tx) {
 
           // Info
           Text(
-            '${isSend ? '-' : '+'}${amount.toStringAsFixed(2)} $asset  ',
+            isSwap
+                ? '$amount $asset → ${swapToAmount != null ? '${swapToAmount.toStringAsFixed(2)} ' : ''}$swapToAsset'
+                : '${isSend ? '-' : '+'}${amount.toStringAsFixed(2)} $asset',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: isSend ? DayFiColors.red : DayFiColors.green,
+              color: isSwap
+                  ? Theme.of(context).colorScheme.primary
+                  : (isSend ? DayFiColors.red : DayFiColors.green),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -537,7 +601,10 @@ void _showTxDetails(BuildContext context, Map<String, dynamic> tx) {
           const SizedBox(height: 24),
 
           // Details rows
-          _DetailRow(label: 'Type', value: isSend ? 'Sent' : 'Received'),
+          _DetailRow(
+            label: 'Type',
+            value: isSwap ? 'Swapped' : (isSend ? 'Sent' : 'Received'),
+          ),
           if (tx['toUsername'] != null)
             _DetailRow(
               label: isSend ? 'To' : 'From',
@@ -582,7 +649,7 @@ void _showTxDetails(BuildContext context, Map<String, dynamic> tx) {
                 onPressed: () {
                   launchUrl(
                     Uri.parse(
-                      'https://stellar.expert/explorer/testnet/tx/$txHash',
+                      'https://stellar.expert/explorer/public/tx/$txHash',
                     ),
                   );
                 },
@@ -604,7 +671,7 @@ void _showTxDetails(BuildContext context, Map<String, dynamic> tx) {
                 ),
               ),
             ),
-                   const SizedBox(height: 20),
+          const SizedBox(height: 20),
         ],
       ),
     ),
@@ -663,8 +730,13 @@ class _TxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSend = tx['type'] == 'send';
+    final isSwap = tx['type'] == 'swap';
     final amount = (tx['amount'] as num).toDouble();
     final asset = tx['asset'] as String;
+    final swapToAsset = (tx['swapToAsset'] as String?) ?? '';
+    final swapToAmount = (tx['receivedAmount'] ?? tx['swapToAmount']) != null
+        ? ((tx['receivedAmount'] ?? tx['swapToAmount']) as num).toDouble()
+        : null;
     final createdAt =
         DateTime.tryParse(tx['createdAt'] ?? '') ?? DateTime.now();
     final toUsername = tx['toUsername'] as String?;
@@ -683,12 +755,14 @@ class _TxTile extends StatelessWidget {
           children: [
             // Icon
             SvgPicture.asset(
-              isSend
-                  ? 'assets/icons/svgs/arrow_out.svg'
-                  : 'assets/icons/svgs/arrow_in.svg',
+              isSwap
+                  ? 'assets/icons/svgs/swap.svg'
+                  : (isSend
+                        ? 'assets/icons/svgs/arrow_out.svg'
+                        : 'assets/icons/svgs/arrow_in.svg'),
               color: Theme.of(context).colorScheme.onSurface.withOpacity(.55),
-              width: 24,
-              height: 24,
+              width: 18,
+              height: 18,
             ),
 
             const SizedBox(width: 12),
@@ -696,9 +770,13 @@ class _TxTile extends StatelessWidget {
             // Info
             Expanded(
               child: Text(
-                '${isSend ? '-' : '+'}${amount.toStringAsFixed(2)} $asset  ',
+                isSwap
+                    ? '$amount $asset → ${swapToAmount != null ? '${swapToAmount.toStringAsFixed(2)} ' : ''}$swapToAsset'
+                    : '${isSend ? '-' : '+'}${amount.toStringAsFixed(2)} $asset',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isSend ? DayFiColors.red : DayFiColors.green,
+                  color: isSwap
+                      ? Theme.of(context).colorScheme.primary
+                      : (isSend ? DayFiColors.red : DayFiColors.green),
                   fontWeight: FontWeight.w600,
                 ),
               ),

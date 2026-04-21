@@ -103,7 +103,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
             // ── Buttons ────────────────────────────────────
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                minimumSize: Size(MediaQuery.of(context).size.width, 50),
+                minimumSize: Size(MediaQuery.of(context).size.width, 48),
                 side: BorderSide(
                   color: Theme.of(
                     context,
@@ -190,7 +190,10 @@ class _SecurityScreenState extends State<SecurityScreen> {
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -233,7 +236,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                       height: 24,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withOpacity(0.95),
+                      ).colorScheme.primary.withOpacity(.85),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -321,7 +324,10 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),

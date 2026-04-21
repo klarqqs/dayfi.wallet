@@ -81,7 +81,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     letterSpacing: -.1,
                   ),
                 ),
-                GestureDetector(
+                InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
                   onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.close),
                 ),
@@ -150,7 +153,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -208,7 +214,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           // Backup warning if not backed up
                           if (u['isBackedUp'] == false) ...[
                             const SizedBox(height: 14),
-                            GestureDetector(
+                            InkWell(
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              hoverColor: Colors.transparent,
                               onTap: () => context.push('/security/phrase'),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -287,7 +296,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 10),
 
               // ── Log out ───────────────────────────────────
-              GestureDetector(
+              InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
                 onTap: _logout,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -345,7 +357,10 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
@@ -427,7 +442,10 @@ class _ThemeOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onTap,
       child: Column(
         children: [
@@ -439,7 +457,7 @@ class _ThemeOption extends StatelessWidget {
               border: Border.all(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.050),
                 width: isSelected ? 2 : 1.5,
               ),
               color: Theme.of(

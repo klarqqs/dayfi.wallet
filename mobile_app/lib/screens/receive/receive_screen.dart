@@ -24,7 +24,8 @@ final Map<String, String> _networkEmojis = {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 class ReceiveScreen extends StatefulWidget {
-  const ReceiveScreen({super.key});
+  final String? initialAsset;
+  const ReceiveScreen({super.key, this.initialAsset});
 
   @override
   State<ReceiveScreen> createState() => _ReceiveScreenState();
@@ -44,11 +45,13 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedNetworkKey = 'stellar'; // Always use Stellar
+    _selectedNetworkKey = 'stellar';
+    if (widget.initialAsset != null) {
+      _selectedAssetCode = widget.initialAsset;
+    }
     _loadInitialData();
   }
 
-  /// Get the appropriate height for an emoji image
   double _getEmojiHeight(String? emoji) {
     return emoji == 'assets/images/stellar.png' ? 38 : 40;
   }
@@ -166,7 +169,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                     letterSpacing: -.1,
                   ),
                 ),
-                GestureDetector(
+                InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
                   onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.close),
                 ),
@@ -178,7 +184,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   _assetEmojis[assetCode] ?? 'assets/images/default.png';
               final isSelected = _selectedAssetCode == assetCode;
 
-              return GestureDetector(
+              return InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
                 onTap: () {
                   setState(() {
                     _selectedAssetCode = assetCode;
@@ -193,7 +202,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(14),
                     // border: Border.all(
                     //   color: isSelected
@@ -273,7 +284,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                     letterSpacing: -.1,
                   ),
                 ),
-                GestureDetector(
+                InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
                   onTap: () => Navigator.pop(ctx),
                   child: const Icon(Icons.close),
                 ),
@@ -290,7 +304,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   'assets/images/default.png';
               final isSelected = _selectedNetworkKey == networkKey;
 
-              return GestureDetector(
+              return InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
                 onTap: () {
                   setState(() => _selectedNetworkKey = networkKey);
                   Navigator.pop(ctx);
@@ -370,7 +387,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -452,7 +472,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         Center(
           child: SizedBox(
             width: (MediaQuery.of(context).size.width * .5) - 8,
-            child: GestureDetector(
+            child: InkWell(
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
               onTap: _showCurrencyPicker,
               child: _DropdownBox(
                 emoji: _selectedAssetCode != null
@@ -594,7 +617,10 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -638,7 +664,7 @@ class _DropdownBox extends StatelessWidget {
         color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.050),
         ),
       ),
       child: Row(
@@ -701,7 +727,10 @@ class _AddressBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onCopy,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),

@@ -93,7 +93,8 @@ class WalletNotifier extends StateNotifier<WalletState> {
         return (data['stellar']['usd'] as num).toDouble();
       }
     } catch (_) {}
-    return state.xlmPriceUSD; // reuse last known price rather than hardcoded fallback
+    return state
+        .xlmPriceUSD; // reuse last known price rather than hardcoded fallback
   }
 
   // ─── Helpers ────────────────────────────────────────────
@@ -255,11 +256,27 @@ class WalletNotifier extends StateNotifier<WalletState> {
 
   Future<Map<String, dynamic>?> resolveRecipient(String identifier) async {
     if (identifier.length < 3) return null;
+
+    // ── If it's a valid Stellar address, resolve directly — no API lookup needed
+    if (_isStellarAddress(identifier)) {
+      return {
+        'stellarAddress': identifier,
+        'dayfiUsername': null,
+        'displayName': identifier,
+      };
+    }
+
     try {
       return await apiService.resolveRecipient(identifier);
     } catch (_) {
       return null;
     }
+  }
+
+  bool _isStellarAddress(String input) {
+    return input.length == 56 &&
+        input.startsWith('G') &&
+        RegExp(r'^[A-Z2-7]+$').hasMatch(input); // Stellar uses base32
   }
 }
 

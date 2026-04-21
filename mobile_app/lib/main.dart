@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:mobile_app/widgets/app_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'router.dart';
@@ -96,7 +97,8 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
       if (_blurred) {
         // Check if session has timed out
         final now = DateTime.now();
-        final needsAuth = _lastAuthTime == null ||
+        final needsAuth =
+            _lastAuthTime == null ||
             now.difference(_lastAuthTime!).inMinutes >= _sessionTimeoutMinutes;
 
         if (needsAuth) {
@@ -157,35 +159,31 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
           children: [
             child ?? const SizedBox(),
             if (_blurred)
-              GestureDetector(
-                onTap: _tryAuthenticate,
-                child: Scaffold(
-                  body: Container(
-                    color: Colors.black.withOpacity(0.95),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/svgs/faceid.svg',
-                            height: 64,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: 250,
-                            child: Text(
-                              'Tap to unlock with Face ID',
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 16,
-                              ),
+              Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  onTap: _tryAuthenticate,
+                  child: AppBackground(
+                    child: Scaffold(
+                      backgroundColor: Colors.transparent,
+                      body: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/svgs/faceid.svg',
+                              height: 64,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withOpacity(.85),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

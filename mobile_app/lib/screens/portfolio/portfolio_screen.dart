@@ -6,6 +6,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/widgets/app_background.dart';
 import 'package:mobile_app/widgets/app_bottomsheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
@@ -101,7 +102,21 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
     for (final tx in reversed) {
       final amt = (tx['amount'] as num).toDouble();
       final type = tx['type'] as String;
-      if (type == 'send' || type == 'swap') {
+      final swapToAsset = (tx['swapToAsset'] as String?) ?? '';
+
+      // Determine if this transaction affects current asset
+      bool isOutgoing = false;
+
+      if (type == 'send') {
+        isOutgoing = true;
+      } else if (type == 'swap') {
+        // For swaps: check swapToAsset to determine direction
+        // If swapToAsset matches current asset, it's incoming (receive)
+        // Otherwise it's outgoing (send)
+        isOutgoing = (swapToAsset != asset);
+      }
+
+      if (isOutgoing) {
         running += amt;
       } else {
         running -= amt;
@@ -170,6 +185,7 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
             ),
           ),
           leading: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -201,11 +217,16 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
   ) {
     const xlmReserve = 2.0;
     final xlmPrice = w.xlmPriceUSD;
-    final xlmUSD = w.xlmBalance * xlmPrice;
-    final usdcUSD = w.usdcBalance;
-    final total = w.totalUSD - (xlmReserve * xlmPrice);
 
-    final xlmPoints = _buildPoints(txs, 'XLM', w.xlmBalance, xlmPrice);
+    // Deduct reserve from XLM balance everywhere
+    final xlmDisplayBalance = (w.xlmBalance - xlmReserve > 0)
+        ? (w.xlmBalance - xlmReserve)
+        : 0.0;
+    final xlmUSD = xlmDisplayBalance * xlmPrice;
+    final usdcUSD = w.usdcBalance;
+    final totalUSD = xlmUSD + usdcUSD;
+
+    final xlmPoints = _buildPoints(txs, 'XLM', xlmDisplayBalance, xlmPrice);
     final usdcPoints = _buildPoints(txs, 'USDC', w.usdcBalance, 1.0);
     final combined = _combinePoints(xlmPoints, usdcPoints);
 
@@ -218,10 +239,10 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
       code: 'XLM',
       name: 'Stellar Lumens',
       imagePath: 'assets/images/stellar.png',
-      balance: w.xlmBalance,
+      balance: xlmDisplayBalance,
       usdValue: xlmUSD,
       changePercent: _computeChange(xlmPoints),
-      available: (w.xlmBalance - xlmReserve).clamp(0, double.infinity),
+      available: xlmDisplayBalance,
       reserved: xlmReserve,
       price: xlmPrice,
       points: xlmPoints,
@@ -246,18 +267,11 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-          _buildTotalValue(total),
+          _buildTotalValue(totalUSD),
           const SizedBox(height: 12),
           _buildChangeRow(changePct, changeAbs),
-          // const SizedBox(height: 24),
-          // _buildPeriodSelector(),
-          // const SizedBox(height: 16),
-          // _buildChart(combined),
-          // const SizedBox(height: 20),
-          // _buildReserveCard(w),
-          // const SizedBox(height: 28),
-          // _buildAllocationSection(xlmUSD, usdcUSD, total),
-          // const SizedBox(height: 32),
+          const SizedBox(height: 20),
+          _buildReserveNotice(context),
           _buildAssetsSection(context, xlmDetail, usdcDetail, w),
           const SizedBox(height: 48),
         ],
@@ -353,13 +367,50 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
     ).animate().fadeIn(delay: 100.ms);
   }
 
+  // ─── Reserve notice ───────────────────────────────────────
+
+  void _openReserveInfo(BuildContext context) {
+    showDayFiBottomSheet(context: context, child: _ReserveInfoSheet());
+  }
+
+  Widget _buildReserveNotice(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _openReserveInfo(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset(
+              'assets/icons/svgs/alert2.svg',
+              color: const Color.fromARGB(255, 232, 172, 9),
+              height: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'XLM reserve deducted from balance',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color.fromARGB(255, 232, 172, 9),
+                fontSize: 13,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─── Period selector ──────────────────────────────────────
 
   Widget _buildPeriodSelector() {
     return Row(
       children: List.generate(_periods.length, (i) {
         final sel = i == _selectedPeriod;
-        return GestureDetector(
+        return InkWell(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
           onTap: () => setState(() => _selectedPeriod = i),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -651,18 +702,21 @@ class _AssetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pos = detail.changePercent >= 0;
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: onTap,
       // onTap: () {},
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.07),
-          ),
+          // border: Border.all(
+          //   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.07),
+          // ),
         ),
         child: Column(
           children: [
@@ -797,7 +851,7 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Opacity(opacity: 0, child: Icon(Icons.close)),
-    
+
               // const SizedBox(height: 4),
               Text(
                 d.name,
@@ -813,7 +867,7 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
               ),
             ],
           ),
-    
+
           // const SizedBox(height: 0),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -833,9 +887,9 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
               ),
             ],
           ),
-    
+
           // const SizedBox(height: 32),
-    
+
           // ─ Big amount
           // Text(
           //   '\$${d.usdValue.toStringAsFixed(2)}',
@@ -846,16 +900,19 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
           //   ),
           // ),
           // const SizedBox(height: 16),
-    
+
           // _ChangeBadge(changePercent: d.changePercent),
-    
+
           // const SizedBox(height: 16),
-    
+
           // ─ Period selector
           // Row(
           //   children: List.generate(_periodLabels.length, (i) {
           //     final sel = i == _period;
-          //     return GestureDetector(
+          //     return InkWell(
+          // splashColor: Colors.transparent,
+          // highlightColor: Colors.transparent,
+          // hoverColor: Colors.transparent,
           //       onTap: () => setState(() => _period = i),
           //       child: AnimatedContainer(
           //         duration: const Duration(milliseconds: 200),
@@ -895,9 +952,9 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
           //     );
           //   }),
           // ),
-    
+
           // const SizedBox(height: 14),
-    
+
           // ─ Chart
           // Container(
           //   height: 110,
@@ -922,7 +979,7 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
           //   ),
           // ),
           const SizedBox(height: 20),
-    
+
           // ─ Stats grid
           Row(
             children: [
@@ -972,58 +1029,24 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
               ),
             ],
           ),
-    
+
           const SizedBox(height: 56),
-    
-          // ─ Info rows
-          // Container(
-          //   decoration: BoxDecoration(
-          //     color: Theme.of(context).colorScheme.surface,
-          //     borderRadius: BorderRadius.circular(16),
-          //     border: Border.all(
-          //       color: Theme.of(
-          //         context,
-          //       ).colorScheme.onSurface.withOpacity(0.06),
-          //     ),
-          //   ),
-          //   child: Column(
-          //     children: [
-          //       _InfoRow(label: 'Network', value: 'Stellar'),
-          //       _InfoRow(
-          //         label: 'Available',
-          //         value:
-          //             '${d.available.toStringAsFixed(d.code == 'USDC' ? 2 : 4)} ${d.code}',
-          //       ),
-          //       if (d.code == 'XLM')
-          //         _InfoRow(
-          //           label: 'Reserved',
-          //           value: '${d.reserved.toStringAsFixed(1)} XLM',
-          //           isLast: true,
-          //         )
-          //       else
-          //         const _InfoRow(
-          //           label: 'Reserved',
-          //           value: '—',
-          //           isLast: true,
-          //         ),
-          //     ],
-          //   ),
-          // ),
-          // const SizedBox(height: 24),
-    
+
           // ─ Action buttons
           Row(
             children: [
               _ActionButton(
                 icon: "assets/icons/svgs/send.svg",
                 label: 'Send',
-                onPressed: () => context.push('/send'),
+                onPressed: () =>
+                    context.push('/send', extra: {'asset': d.code}),
               ),
               const SizedBox(width: 10),
               _ActionButton(
                 icon: "assets/icons/svgs/receive.svg",
                 label: 'Receive',
-                onPressed: () => context.push('/receive'),
+                onPressed: () =>
+                    context.push('/receive', extra: {'asset': d.code}),
               ),
               // const SizedBox(width: 10),
               // _ActionButton(
@@ -1033,7 +1056,7 @@ class _AssetDetailSheetState extends State<_AssetDetailSheet> {
               // ),
             ],
           ),
-    
+
           const SizedBox(height: 40),
         ],
       ),
@@ -1201,9 +1224,9 @@ class _CardContainer extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.04),
-        ),
+        // border: Border.all(
+        //   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.04),
+        // ),
       ),
       child: child,
     );
@@ -1289,6 +1312,144 @@ class _ActionButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Reserve info bottom sheet ────────────────────────────────────────────────
+
+class _ReserveInfoSheet extends StatelessWidget {
+  const _ReserveInfoSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SizedBox(width: 24),
+              Text(
+                '',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 16,
+                  letterSpacing: -0.1,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, size: 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Warning icon
+          SvgPicture.asset(
+            'assets/icons/svgs/alert2.svg',
+            color: const Color.fromARGB(255, 232, 172, 9),
+            height: 56,
+          ),
+          const SizedBox(height: 24),
+
+          // Description
+          Text(
+            'Stellar requires a 2 XLM minimum balance to maintain your account. This amount is locked and cannot be spent. Your available XLM balance excludes this 2 XLM reserve to ensure your account stays active.',
+
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 16,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // Learn more button
+
+          // Buttons
+          Column(
+            children: [
+              // Create wallet
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: Size(MediaQuery.of(context).size.width, 48),
+                  side: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(.90),
+                    width: 1.5,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () async {
+                  final url = Uri.parse(
+                    'https://stellar.org/learn/intro-to-stellar',
+                  );
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: Icon(
+                  Icons.open_in_new,
+                  size: 20,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(.90),
+                ),
+                label: Text(
+                  'Learn More',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(.95),
+                    fontSize: 15,
+                  ),
+                ),
+              ).animate().fadeIn(delay: 500.ms),
+
+              const SizedBox(height: 8),
+
+              // Create wallet
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  side: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0),
+                    width: 1.5,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context),
+
+                label: Center(
+                  child: Text(
+                    'Cancel',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(.95),
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ).animate().fadeIn(delay: 500.ms),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/widgets/app_bottomsheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/asset.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/api_service.dart';
@@ -143,12 +144,13 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
           stackTrace: stack,
           name: 'SwapScreen.fetchQuote',
         );
-        if (mounted)
+        if (mounted) {
           setState(
             () => _quoteError = errorMsg.isEmpty
                 ? 'Failed to fetch quote'
                 : errorMsg,
           );
+        }
       } finally {
         if (mounted) setState(() => _loadingQuote = false);
       }
@@ -218,12 +220,13 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
           stackTrace: stack,
           name: 'SwapScreen.fetchQuote',
         );
-        if (mounted)
+        if (mounted) {
           setState(
             () => _quoteError = errorMsg.isEmpty
                 ? 'Failed to fetch quote'
                 : errorMsg,
           );
+        }
       } finally {
         if (mounted) setState(() => _loadingQuote = false);
       }
@@ -252,44 +255,51 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
 
     // Show loading dialog that persists
     if (!mounted) return;
-    showDialog(
+    showDayFiBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => WillPopScope(
-        onWillPop: () async => false,
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
+      isDismissible: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(strokeWidth: 3),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  height: 40,
-                  width: 40,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Processing swap...',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'This may take a few seconds',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Swapping...',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1,
+                height: 1.1,
+              ),
             ),
-          ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              'This may take a few seconds',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: 17,
+                letterSpacing: -.5,
+                height: 1.3,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 32),
+          ],
         ),
       ),
     );
-
     try {
       final result = await apiService.executeSwap(
         fromAsset: _fromAsset,
@@ -402,7 +412,7 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
             const SizedBox(height: 10),
 
             Text(
-              '${_fromAmountController.text} $_fromAsset → $_toAsset',
+              '${_fromAmountController.text} $_fromAsset → ${_toAmountController.text} $_toAsset',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontSize: 17,
                 letterSpacing: -.5,
@@ -415,26 +425,26 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
 
             // Confirmed / Processing badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: (confirmed
-                    ? DayFiColors.greenDim
-                    : DayFiColors.textMuted.withOpacity(0.15)),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: confirmed
-                      ? DayFiColors.green.withOpacity(0.25)
-                      : DayFiColors.textMuted.withOpacity(0.2),
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              decoration: const BoxDecoration(
+                // color: (confirmed
+                //     ? DayFiColors.greenDim
+                //     : DayFiColors.textMuted.withOpacity(0.15)),
+                // borderRadius: BorderRadius.circular(20),
+                // border: Border.all(
+                //   color: confirmed
+                //       ? DayFiColors.green.withOpacity(0.25)
+                //       : DayFiColors.textMuted.withOpacity(0.2),
+                // ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  SvgPicture.asset(
                     confirmed
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.access_time_rounded,
-                    size: 12,
+                        ? 'assets/icons/svgs/circle_check.svg'
+                        : 'assets/icons/svgs/circle_check.svg',
+                    height: 14,
                     color: confirmed
                         ? DayFiColors.green
                         : DayFiColors.textSecondary,
@@ -443,7 +453,7 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                   Text(
                     'Stellar DEX · ${confirmed ? 'Confirmed' : 'Processing'}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: confirmed
                           ? DayFiColors.green
                           : DayFiColors.textSecondary,
@@ -454,46 +464,83 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
               ),
             ),
 
-            if (result['transaction']?['hash'] != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Tx: ${(result['transaction']['hash'] as String).substring(0, 12)}...',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(letterSpacing: 0.2),
-              ),
-            ],
-
+            // if (result['transaction']?['hash'] != null) ...[
+            //   const SizedBox(height: 10),
+            //   Text(
+            //     'Tx: ${(result['transaction']['hash'] as String).substring(0, 12)}...',
+            //     style: Theme.of(
+            //       context,
+            //     ).textTheme.bodySmall?.copyWith(letterSpacing: 0.2),
+            //   ),
+            // ],
             const SizedBox(height: 32),
 
-            // ── Done button ─────────────────────────────────
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                minimumSize: Size(MediaQuery.of(context).size.width, 50),
-                side: BorderSide(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(.90),
-                  width: 1.5,
+            // View on chain button
+            if (result['transaction']?['hash'] != null)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    side: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(.90),
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    launchUrl(
+                      Uri.parse(
+                        'https://stellar.expert/explorer/public/tx/${result['transaction']?['hash']}',
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    Icons.open_in_new,
+                    size: 18,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(.90),
+                  ),
+                  label: Text(
+                    'View on Chain',
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(.90),
+                      fontSize: 15,
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              ).animate().fadeIn(delay: 500.ms),
+
+            const SizedBox(height: 10),
+
+            // Done button — no border, full width
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
+
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.go('/home');
+                },
+                child: Text(
+                  'Done',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(.90),
+                    fontSize: 15,
+                  ),
                 ),
               ),
-              onPressed: () {
-                Navigator.pop(context);
-                context.go('/home');
-              },
-              child: Text(
-                'Done',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(.95),
-                  fontSize: 15,
-                ),
-              ),
-            ).animate().fadeIn(delay: 500.ms),
+            ).animate().fadeIn(delay: 600.ms),
           ],
         ),
       ),
@@ -527,7 +574,10 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -601,12 +651,15 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                     // border: Border.all(
                     //   color: Theme.of(
                     //     context,
-                    //   ).colorScheme.onSurface.withOpacity(0.2),
+                    //   ).colorScheme.onSurface.withOpacity(0.050),
                     // ),
                   ),
                   child: Row(
                     children: [
-                      GestureDetector(
+                      InkWell(
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
                         onTap: () => _showAssetPicker(isFrom: true),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -712,44 +765,51 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                 ).animate().fadeIn(delay: 150.ms),
 
                 // Available balance hint
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, left: 4),
-                  child: GestureDetector(
-                    onTap: _executing
-                        ? null
-                        : () {
-                            final toUse = available - _estimatedFeeXLM();
-                            _fromAmountController.text = toUse.toStringAsFixed(
-                              _fromAsset == 'XLM' ? 4 : 2,
-                            );
-                            _onAmountChanged(
-                              _fromAmountController.text,
-                              field: 'from',
-                            );
-                          },
-                    child: Text(
-                      'Available: ${available.toStringAsFixed(_fromAsset == 'XLM' ? 4 : 2)} $_fromAsset',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _executing
-                            ? DayFiColors.red
-                            : _hasInsufficientBalance
-                            ? DayFiColors.red
-                            : Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withOpacity(0.4),
-                        fontWeight: _executing
-                            ? FontWeight.w500
-                            : FontWeight.w400,
+                if (_quoteError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: InkWell(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                      onTap: _executing
+                          ? null
+                          : () {
+                              final toUse = available - _estimatedFeeXLM();
+                              _fromAmountController.text = toUse
+                                  .toStringAsFixed(_fromAsset == 'XLM' ? 4 : 2);
+                              _onAmountChanged(
+                                _fromAmountController.text,
+                                field: 'from',
+                              );
+                            },
+                      child: Text(
+                        _quoteError!,
+                        // 'Available: ${available.toStringAsFixed(_fromAsset == 'XLM' ? 4 : 2)} $_fromAsset',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _executing
+                              ? DayFiColors.red
+                              : _hasInsufficientBalance
+                              ? DayFiColors.red
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.4),
+                          fontWeight: _executing
+                              ? FontWeight.w500
+                              : FontWeight.w400,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
                 const SizedBox(height: 12),
 
                 // Flip button
                 Center(
-                  child: GestureDetector(
+                  child: InkWell(
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
                     onTap: _flip,
                     child: Container(
                       width: 40,
@@ -797,12 +857,15 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                     // border: Border.all(
                     //   color: Theme.of(
                     //     context,
-                    //   ).colorScheme.onSurface.withOpacity(0.2),
+                    //   ).colorScheme.onSurface.withOpacity(0.050),
                     // ),
                   ),
                   child: Row(
                     children: [
-                      GestureDetector(
+                      InkWell(
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
                         onTap: () => _showAssetPicker(isFrom: false),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -908,37 +971,56 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                   ),
                 ).animate().fadeIn(delay: 200.ms),
 
+                // Error messages
+                // if (_quoteError != null)
+                //   Container(
+                //     width: double.infinity,
+                //     padding: const EdgeInsets.all(12),
+                //     margin: const EdgeInsets.only(bottom: 16),
+                //     decoration: BoxDecoration(
+                //       color: DayFiColors.redDim,
+                //       borderRadius: BorderRadius.circular(12),
+                //     ),
+                //     child: Text(
+                //       _quoteError!,
+                //       style: Theme.of(
+                //         context,
+                //       ).textTheme.bodySmall?.copyWith(color: DayFiColors.red),
+                //     ),
+                //   ).animate().fadeIn(),
+
+                // If quote not loaded yet
+                // if (_quote == null &&
+                //     !_loadingQuote &&
+                //     _fromAmountController.text.isNotEmpty)
+                //   Container(
+                //     width: double.infinity,
+                //     padding: const EdgeInsets.all(12),
+                //     margin: const EdgeInsets.only(bottom: 16),
+                //     decoration: BoxDecoration(
+                //       color: DayFiColors.greenDim.withOpacity(0.3),
+                //       borderRadius: BorderRadius.circular(12),
+                //     ),
+                //     child: Text(
+                //       'Enter an amount to get a quote',
+                //       style: Theme.of(
+                //         context,
+                //       ).textTheme.bodySmall?.copyWith(color: DayFiColors.green),
+                //     ),
+                // ).animate().fadeIn(),
+
+                // Quote details
+                if (_quote != null && !_hasInsufficientBalance) ...[
+                  const SizedBox(height: 8),
+                  _QuoteDetails(
+                    quote: _quote!,
+                    fromAsset: _fromAsset,
+                    toAsset: _toAsset,
+                  ).animate().fadeIn(),
+                  const SizedBox(height: 20),
+                ],
+
                 const SizedBox(height: 20),
-
-                //   // Error messages
-                //  if (_quoteError != null)
-                //     Container(
-                //       width: double.infinity,
-                //       padding: const EdgeInsets.all(12),
-                //       margin: const EdgeInsets.only(bottom: 16),
-                //       decoration: BoxDecoration(
-                //         color: DayFiColors.redDim,
-                //         borderRadius: BorderRadius.circular(12),
-                //       ),
-                //       child: Text(
-                //         _quoteError!,
-                //         style: Theme.of(
-                //           context,
-                //         ).textTheme.bodySmall?.copyWith(color: DayFiColors.red),
-                //       ),
-                //     ).animate().fadeIn(),
-
-                //   // Quote details
-                //   if (_quote != null && !_hasInsufficientBalance) ...[
-                //     const SizedBox(height: 8),
-                //     _QuoteDetails(
-                //       quote: _quote!,
-                //       fromAsset: _fromAsset,
-                //       toAsset: _toAsset,
-                //     ).animate().fadeIn(),
-                //     const SizedBox(height: 20),
-                //   ],
-
                 // Swap button
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
@@ -1033,7 +1115,10 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                   'Select Asset',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                GestureDetector(
+                InkWell(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
                   onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.close),
                 ),
@@ -1045,20 +1130,25 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
               final isDisabled = code == excluded;
               final isSelected = code == (isFrom ? _fromAsset : _toAsset);
               final bal = _availableFor(code);
-              return GestureDetector(
+              return InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
                 onTap: isDisabled
                     ? null
                     : () {
                         Navigator.pop(context);
                         setState(() {
-                          if (isFrom)
+                          if (isFrom) {
                             _fromAsset = code;
-                          else
+                          } else {
                             _toAsset = code;
+                          }
                           _quote = null;
                         });
-                        if (_fromAmountController.text.isNotEmpty)
+                        if (_fromAmountController.text.isNotEmpty) {
                           _fetchQuote();
+                        }
                       },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -1156,9 +1246,9 @@ class _QuoteDetails extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _Row(label: 'Network', value: 'Stellar DEX'),
+          const _Row(label: 'Network', value: 'Stellar DEX'),
           _Row(label: 'Rate', value: '1 $fromAsset = $price $toAsset'),
-          _Row(label: 'Est. Time', value: '~5 seconds'),
+          const _Row(label: 'Est. Time', value: '~5 seconds'),
         ],
       ),
     );

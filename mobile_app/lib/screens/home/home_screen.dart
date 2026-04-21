@@ -109,7 +109,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: GestureDetector(
+              child: InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
                 onTap: _openMenu,
                 child: SvgPicture.asset(
                   "assets/icons/svgs/menu.svg",
@@ -170,7 +173,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         const SizedBox(width: 6),
-        GestureDetector(
+        InkWell(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
           onTap: () => setState(() => _balanceHidden = !_balanceHidden),
           child: SvgPicture.asset(
             _balanceHidden
@@ -364,16 +370,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildPortfolioChip(WalletState walletState) {
     final heldAssets = <String>[];
-    if (walletState.usdcBalance > 0) {
+    if (walletState.xlmBalance > 0) {
       heldAssets.add('assets/images/stellar.png');
     }
-    if (walletState.xlmBalance > 0) heldAssets.add('assets/images/usdc.png');
+    if (walletState.usdcBalance > 0) {
+      heldAssets.add('assets/images/usdc.png');
+    }
     if (heldAssets.isEmpty) {
       heldAssets.add('assets/images/stellar.png');
       heldAssets.add('assets/images/usdc.png');
     }
 
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: () => context.push('/portfolio'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
@@ -400,10 +411,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 1.5,
-                        ),
                       ),
                       child: Center(
                         child: ClipRRect(
@@ -429,6 +436,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 fontWeight: FontWeight.w400,
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
                 letterSpacing: 0.4,
+                fontSize: 12,
               ),
             ),
             const SizedBox(width: 8),
@@ -450,7 +458,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // ─── Transactions link ───────────────────────────────────
 
   Widget _buildTransactionsLink() {
-    return GestureDetector(
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
       onTap: () => context.push('/transactions'),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -541,86 +552,98 @@ class _MenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
-      child: AppBackground(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            centerTitle: true,
-            automaticallyImplyLeading: false,
-            title: _buildTopBar(context),
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        onTap: () => Navigator.of(context).pop(),
+        child: AppBackground(
+          child: Scaffold(
             backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: SvgPicture.asset(
-                    "assets/icons/svgs/menu.svg",
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.55),
+            appBar: AppBar(
+              centerTitle: true,
+              automaticallyImplyLeading: false,
+              title: _buildTopBar(context),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: InkWell(
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: SvgPicture.asset(
+                      "assets/icons/svgs/menu.svg",
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.55),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          body: SizedBox.expand(
-            child: Column(
-              children: [
-                const Expanded(child: SizedBox()),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: List.generate(_items.length, (i) {
-                    final item = _items[i];
-                    return AnimatedBuilder(
-                      animation: animation,
-                      builder: (ctx, child) {
-                        // Stagger: each item starts slightly later
-                        final staggered = CurvedAnimation(
-                          parent: animation,
-                          curve: Interval(
-                            i * 0.08,
-                            (i * 0.08 + 0.6).clamp(0.0, 1.0),
-                            curve: Curves.easeOutCubic,
-                          ),
-                        );
-                        return Transform.translate(
-                          offset: Offset(60 * (1 - staggered.value), 0),
-                          child: Opacity(
-                            opacity: staggered.value.clamp(0.0, 1.0),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          onNavigate(item.$2);
+              ],
+            ),
+            body: SizedBox.expand(
+              child: Column(
+                children: [
+                  const Expanded(child: SizedBox()),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: List.generate(_items.length, (i) {
+                      final item = _items[i];
+                      return AnimatedBuilder(
+                        animation: animation,
+                        builder: (ctx, child) {
+                          // Stagger: each item starts slightly later
+                          final staggered = CurvedAnimation(
+                            parent: animation,
+                            curve: Interval(
+                              i * 0.08,
+                              (i * 0.08 + 0.6).clamp(0.0, 1.0),
+                              curve: Curves.easeOutCubic,
+                            ),
+                          );
+                          return Transform.translate(
+                            offset: Offset(60 * (1 - staggered.value), 0),
+                            child: Opacity(
+                              opacity: staggered.value.clamp(0.0, 1.0),
+                              child: child,
+                            ),
+                          );
                         },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Text(
-                            item.$1,
-                            style: Theme.of(context).textTheme.displayLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w400,
-                                  fontSize: 38,
-                                  letterSpacing: -0.8,
-                                ),
+                        child: InkWell(
+                          splashColor: Colors.transparent,
+                          highlightColor: Colors.transparent,
+                          hoverColor: Colors.transparent,
+                          // behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            onNavigate(item.$2);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              item.$1,
+                              style: Theme.of(context).textTheme.displayLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 38,
+                                    letterSpacing: -0.8,
+                                  ),
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }),
-                ),
-                const Expanded(child: SizedBox()),
-                const Text("dayfi wallet v1.0.1 (Build 34)"),
-                const SizedBox(height: 32),
-              ],
+                      );
+                    }),
+                  ),
+                  const Expanded(child: SizedBox()),
+                  const Text("dayfi wallet v1.0.1 (Build 34)"),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
         ),
@@ -645,7 +668,10 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 9),

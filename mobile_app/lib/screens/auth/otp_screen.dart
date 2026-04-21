@@ -97,6 +97,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _resend() async {
+    if (_loading) return;
     if (_resendCountdown > 0) return;
     setState(() => _resending = true);
     try {
@@ -161,7 +162,10 @@ class _OtpScreenState extends State<OtpScreen> {
                 const SizedBox(height: 24),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: GestureDetector(
+                  child: InkWell(
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
                     onTap: () => context.pop(),
                     child: const Icon(Icons.arrow_back_ios, size: 20),
                   ),
@@ -232,7 +236,10 @@ class _OtpScreenState extends State<OtpScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : GestureDetector(
+                      : InkWell(
+                          splashColor: Colors.transparent,
+                          highlightColor: Colors.transparent,
+                          hoverColor: Colors.transparent,
                           onTap: _resendCountdown == 0 ? _resend : null,
                           child: Text.rich(
                             TextSpan(

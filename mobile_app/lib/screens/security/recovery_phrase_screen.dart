@@ -136,7 +136,10 @@ class _RecoveryPhraseScreenState extends State<RecoveryPhraseScreen>
               letterSpacing: -0.1,
             ),
           ),
-          leading: GestureDetector(
+          leading: InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
             onTap: () => context.pop(),
             child: const Icon(Icons.arrow_back_ios, size: 20),
           ),
@@ -287,7 +290,10 @@ class _RecoveryPhraseScreenState extends State<RecoveryPhraseScreen>
 
                     // Blur overlay when backgrounded
                     if (_blurred)
-                      GestureDetector(
+                      InkWell(
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+  hoverColor: Colors.transparent,
                         onTap: _reAuthenticate,
                         child: Container(
                           color: Theme.of(

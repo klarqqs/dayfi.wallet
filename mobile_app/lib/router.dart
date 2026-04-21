@@ -16,22 +16,23 @@ import 'screens/home/home_screen.dart';
 import 'screens/receive/receive_screen.dart';
 import 'screens/send/send_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'services/api_service.dart'; 
+import 'services/api_service.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
   redirect: (context, state) async {
-    final token  = await apiService.getToken();
+    final token = await apiService.getToken();
     final isAuth = token != null;
-    final loc    = state.matchedLocation;
+    final loc = state.matchedLocation;
 
     // These are allowed even when authenticated (post-signup flow)
     final isPostSignup = loc == '/auth/biometric' || loc == '/auth/backup';
-    final isAuthRoute  = loc.startsWith('/auth') && !isPostSignup;
+    final isAuthRoute = loc.startsWith('/auth') && !isPostSignup;
     final isOnboarding = loc == '/onboarding';
 
     if (isAuth && (isAuthRoute || isOnboarding)) return '/home';
-    if (!isAuth && !isAuthRoute && !isOnboarding && !isPostSignup) return '/onboarding';
+    if (!isAuth && !isAuthRoute && !isOnboarding && !isPostSignup)
+      return '/onboarding';
     return null;
   },
   routes: [
@@ -71,22 +72,44 @@ final appRouter = GoRouter(
         return UsernameScreen(setupToken: extra['setupToken']);
       },
     ),
-    GoRoute(path: '/auth/biometric', builder: (_, __) => const BiometricScreen()),
-    GoRoute(path: '/auth/backup',    builder: (_, __) => const BackupScreen()),
+    GoRoute(
+      path: '/auth/biometric',
+      builder: (_, __) => const BiometricScreen(),
+    ),
+    GoRoute(path: '/auth/backup', builder: (_, __) => const BackupScreen()),
 
     // Main app
-    GoRoute(path: '/home',         builder: (_, __) => const HomeScreen()),
-    GoRoute(path: '/receive',      builder: (_, __) => const ReceiveScreen()),
-    GoRoute(path: '/send',         builder: (_, __) => const SendScreen()),
-    GoRoute(path: '/buy',          builder: (_, __) => const BuyScreen()),
-    GoRoute(path: '/sell',         builder: (_, __) => const SellScreen()),
-    GoRoute(path: '/swap',         builder: (_, __) => const SwapScreen()),
-    GoRoute(path: '/transactions', builder: (_, __) => const TransactionsScreen()),
-    GoRoute(path: '/settings',     builder: (_, __) => const SettingsScreen()),
+    GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+    GoRoute(
+      path: '/receive',
+      builder: (_, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return ReceiveScreen(initialAsset: extra?['asset'] as String?);
+      },
+    ),
+    GoRoute(
+      path: '/send',
+      builder: (_, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return SendScreen(initialAsset: extra?['asset'] as String?);
+      },
+    ),
+
+    GoRoute(path: '/buy', builder: (_, __) => const BuyScreen()),
+    GoRoute(path: '/sell', builder: (_, __) => const SellScreen()),
+    GoRoute(path: '/swap', builder: (_, __) => const SwapScreen()),
+    GoRoute(
+      path: '/transactions',
+      builder: (_, __) => const TransactionsScreen(),
+    ),
+    GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
 
     // Security
-    GoRoute(path: '/security',        builder: (_, __) => const SecurityScreen()),
-    GoRoute(path: '/security/phrase', builder: (_, __) => const RecoveryPhraseScreen()),
+    GoRoute(path: '/security', builder: (_, __) => const SecurityScreen()),
+    GoRoute(
+      path: '/security/phrase',
+      builder: (_, __) => const RecoveryPhraseScreen(),
+    ),
 
     GoRoute(path: '/portfolio', builder: (_, __) => const PortfolioScreen()),
   ],

@@ -116,7 +116,7 @@ class OnboardingScreen extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           minimumSize: Size(
                             MediaQuery.of(context).size.width,
-                            50,
+                            48,
                           ),
                           side: BorderSide(
                             color: Theme.of(
