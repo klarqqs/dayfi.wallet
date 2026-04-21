@@ -173,7 +173,7 @@ class _BuyScreenState extends State<BuyScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -463,7 +463,7 @@ class _SellScreenState extends State<SellScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -513,7 +513,7 @@ class _SellScreenState extends State<SellScreen> {
                                   color: selected
                                       ? Theme.of(context).colorScheme.background
                                       : null,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                           ),
                         ],
@@ -635,7 +635,7 @@ class _QuoteRow extends StatelessWidget {
         Text(
           value,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+            fontWeight: bold ? FontWeight.w400 : FontWeight.w400,
             color: bold ? Theme.of(context).colorScheme.onSurface : null,
           ),
         ),

@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
@@ -23,16 +24,20 @@ Future<void> _initFirebase(WidgetRef ref) async {
   await messaging.requestPermission(alert: true, badge: true, sound: true);
   final token = await messaging.getToken();
   if (token != null) {
-    await ref.read(userNotifierProvider.notifier).registerDeviceToken(
-      token,
-      defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
-    );
+    await ref
+        .read(userNotifierProvider.notifier)
+        .registerDeviceToken(
+          token,
+          defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+        );
   }
   messaging.onTokenRefresh.listen((newToken) {
-    ref.read(userNotifierProvider.notifier).registerDeviceToken(
-      newToken,
-      defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
-    );
+    ref
+        .read(userNotifierProvider.notifier)
+        .registerDeviceToken(
+          newToken,
+          defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+        );
   });
   FirebaseMessaging.onMessage.listen((msg) {
     debugPrint('FCM foreground: ${msg.notification?.title}');
@@ -53,16 +58,22 @@ class DayFiApp extends ConsumerStatefulWidget {
 
 class _DayFiAppState extends ConsumerState<DayFiApp>
     with WidgetsBindingObserver {
-  final _auth   = LocalAuthentication();
+  final _auth = LocalAuthentication();
   bool _blurred = false;
   bool _authenticating = false;
+  DateTime? _lastAuthTime; // Track last successful authentication
+  static const int _sessionTimeoutMinutes = 5; // Grace period before re-auth
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try { await _initFirebase(ref); } catch (e) { debugPrint('Firebase: $e'); }
+      try {
+        await _initFirebase(ref);
+      } catch (e) {
+        debugPrint('Firebase: $e');
+      }
       // Authenticate on first open if Face ID enabled and token valid
       await _tryAuthenticate();
     });
@@ -82,7 +93,19 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
       final faceEnabled = prefs.getBool('faceIdEnabled') ?? false;
       if (faceEnabled) setState(() => _blurred = true);
     } else if (state == AppLifecycleState.resumed) {
-      if (_blurred) await _tryAuthenticate();
+      if (_blurred) {
+        // Check if session has timed out
+        final now = DateTime.now();
+        final needsAuth = _lastAuthTime == null ||
+            now.difference(_lastAuthTime!).inMinutes >= _sessionTimeoutMinutes;
+
+        if (needsAuth) {
+          await _tryAuthenticate();
+        } else {
+          // Session still valid, no Face ID needed
+          if (mounted) setState(() => _blurred = false);
+        }
+      }
     }
   }
 
@@ -99,9 +122,18 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
     try {
       final ok = await _auth.authenticate(
         localizedReason: 'Authenticate to open DayFi',
-        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
       );
-      if (mounted) setState(() => _blurred = !ok);
+      if (ok) {
+        // Record successful authentication time
+        _lastAuthTime = DateTime.now();
+        if (mounted) setState(() => _blurred = false);
+      } else {
+        if (mounted) setState(() => _blurred = true);
+      }
     } catch (_) {
       if (mounted) setState(() => _blurred = true);
     } finally {
@@ -127,20 +159,34 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
             if (_blurred)
               GestureDetector(
                 onTap: _tryAuthenticate,
-                child: Container(
-                  color: Colors.black.withOpacity(0.95),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.face_retouching_natural,
-                            size: 64, color: Colors.white),
-                        const SizedBox(height: 20),
-                        Text('Tap to unlock',
-                            style: TextStyle(
+                child: Scaffold(
+                  body: Container(
+                    color: Colors.black.withOpacity(0.95),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icons/svgs/faceid.svg',
+                            height: 64,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: 250,
+                            child: Text(
+                              'Tap to unlock with Face ID',
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
                                 color: Colors.white.withOpacity(0.7),
-                                fontSize: 16)),
-                      ],
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

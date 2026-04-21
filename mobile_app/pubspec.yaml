@@ -54,7 +54,7 @@ dependencies:
   google_fonts: ^8.0.2
   flutter_animate: ^4.5.0
   lottie: ^3.1.0
-  qr_flutter: ^4.1.0
+  pretty_qr_code: ^3.6.0
   # mobile_scanner: ^5.0.0      # QR scanner - TODO: Fix CocoaPods conflict
   
   # Utils
@@ -73,6 +73,9 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_svg: ^2.2.4
 
+  flutter_launcher_icons: 
+  pinput: ^5.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -87,6 +90,7 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/icons/svgs/
+    - assets/animations/
 
 fonts:
   - family: NeueMontreal
@@ -99,3 +103,19 @@ fonts:
       - asset: assets/fonts/neuemontreal-mediumitalic.otf
       - asset: assets/fonts/neuemontreal-bolditalic.otf
       - asset: assets/fonts/neuemontreal-lightitalic.otf
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+
+  # Android adaptive icon (API 26+)
+  adaptive_icon_background: "#FFFFFF"   
+  adaptive_icon_foreground: "assets/images/logo.png"
+
+  # Different icons per platform
+  image_path_android: "assets/images/logo.png"
+  image_path_ios: "assets/images/logo.png"
+
+  # Remove alpha channel for iOS (recommended)
+  remove_alpha_ios: true

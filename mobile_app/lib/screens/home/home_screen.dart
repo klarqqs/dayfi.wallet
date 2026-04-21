@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/widgets/app_background.dart';
 import '../../models/asset.dart';
 import '../../providers/wallet_provider.dart';
@@ -25,7 +26,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _balanceHidden = false;
-  bool _menuOpen = false;
   Timer? _refreshTimer;
 
   @override
@@ -42,84 +42,119 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
+  // ─── Open menu as full-screen route ─────────────────────
+
+  void _openMenu() {
+    final userAsync = ref.read(userProvider);
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.transparent,
+        pageBuilder: (ctx, animation, _) => _MenuOverlay(
+          animation: animation,
+          onNavigate: (route) {
+            Navigator.of(ctx).pop(); // close menu first
+            if (route != null) context.push(route);
+          },
+          onTestFund: () async {
+            Navigator.of(ctx).pop();
+            try {
+              await apiService.testFundWallet();
+              await ref.read(walletProvider.notifier).refresh();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Wallet funded with 1.0 XLM'),
+                    backgroundColor: Color(0xFF4CAF50),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('❌ Fund failed: $e'),
+                    backgroundColor: const Color(0xFFE53935),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+        transitionsBuilder: (ctx, animation, _, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final walletState = ref.watch(walletProvider);
-    final userAsync = ref.watch(userProvider);
-// home_screen.dart — replace the Scaffold return
-return Scaffold(
-  backgroundColor: Colors.transparent,
-  body: AppBackground(
-    child: SafeArea(
-      child: Stack(
-        children: [
-          RefreshIndicator(
+
+    return AppBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          title: _buildTopBar(context),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: GestureDetector(
+                onTap: _openMenu,
+                child: SvgPicture.asset(
+                  "assets/icons/svgs/menu.svg",
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.55),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: RefreshIndicator(
             onRefresh: () async {
               await ref.read(walletProvider.notifier).refresh();
               ref.invalidate(userProvider);
             },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height -
-                    MediaQuery.of(context).padding.top -
-                    MediaQuery.of(context).padding.bottom,
-                child: Column(
-                  children: [
-                    _buildTopBar(),
-                    const Spacer(flex: 3),
-                    _buildBalanceLabel(),
-                    const SizedBox(height: 12),
-                    _buildTotalBalance(walletState),
-                    const SizedBox(height: 8),
-                    _buildReserveInfo(walletState),
-                    const SizedBox(height: 20),
-                    _buildPortfolioChip(walletState),
-                    const SizedBox(height: 12),
-                    _buildTransactionsLink(),
-                    const Spacer(flex: 4),
-                    _buildActionRow(),
-                    const SizedBox(height: 32),
-                  ],
-                ),
+            child: SizedBox(
+              height:
+                  MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom,
+              child: Column(
+                children: [
+                  const Spacer(flex: 4),
+                  _buildBalanceLabel(),
+                  const SizedBox(height: 16),
+                  _buildTotalBalance(walletState),
+                  const SizedBox(height: 16),
+                  _buildPortfolioChip(walletState),
+                  const SizedBox(height: 32),
+                  _buildTransactionsLink(),
+                  const Spacer(flex: 4),
+                  _buildActionRow(),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
           ),
-          if (_menuOpen) _buildMenu(userAsync),
-        ],
-      ),
-    ),
-  ),
-);
-  }
-
-  // ─── Top bar ─────────────────────────────────────────────
-
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'dayfi.',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.35),
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-            ),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _menuOpen = !_menuOpen),
-            child: Icon(
-              _menuOpen ? Icons.close : Icons.menu,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+
+  // ─── Top bar ─────────────────────────────────────────────
 
   // ─── Balance label ───────────────────────────────────────
 
@@ -130,93 +165,149 @@ return Scaffold(
         Text(
           'Total Wallet Balance',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
-            letterSpacing: 0.2,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
+            letterSpacing: 0.4,
           ),
         ),
         const SizedBox(width: 6),
         GestureDetector(
           onTap: () => setState(() => _balanceHidden = !_balanceHidden),
-          child: Icon(
+          child: SvgPicture.asset(
             _balanceHidden
-                ? Icons.visibility_off_outlined
-                : Icons.remove_red_eye_outlined,
-            size: 15,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.35),
+                ? "assets/icons/svgs/eye_closed.svg"
+                : "assets/icons/svgs/eye_open.svg",
+            height: 21,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
           ),
         ),
       ],
     ).animate().fadeIn(duration: 500.ms);
   }
 
-  // ─── Total balance ───────────────────────────────────────
-
   Widget _buildTotalBalance(WalletState walletState) {
     final xlmPriceUSD = walletState.xlmPriceUSD ?? 0.0;
-    const xlmReserve = 2.0; // XLM reserve for multi-hop swaps
+    const xlmReserve = 2.0;
     final reservedUSD = xlmReserve * xlmPriceUSD;
-    final total = walletState.totalUSD - reservedUSD;
 
-    final wholePart = total.toInt().toString();
-    final decimalPart = (total - total.toInt())
-        .toStringAsFixed(2)
-        .substring(1); // ".25"
+    // ── Determine what value to actually display ──────────────
+    // Priority: live total → last known → dash (never show 0.00 falsely)
+    final rawTotal = walletState.totalUSD - reservedUSD;
+    final liveTotal = rawTotal < 0
+        ? 0.0
+        : double.parse(rawTotal.toStringAsFixed(2));
 
-    if (walletState.isLoading) {
+    // Use last known if current fetch errored/offline and live is 0
+    final displayTotal =
+        (walletState.hasError || walletState.isOffline) && liveTotal == 0
+        ? walletState.lastKnownTotal
+        : liveTotal;
+
+    final hasMeaningfulValue = displayTotal != null && displayTotal > 0;
+
+    // ── Loading spinner (first load only, no lastKnown yet) ───
+    if (walletState.isLoading && walletState.lastKnownTotal == null) {
       return Text(
         '\$—',
-        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
-          fontSize: 64,
-          fontWeight: FontWeight.w300,
-          letterSpacing: -3,
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          fontWeight: FontWeight.w400,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(.40),
+          letterSpacing: 0.4,
+          fontSize: 28,
         ),
       );
     }
 
+    // ── Hidden balance ────────────────────────────────────────
     if (_balanceHidden) {
-      return Text(
-        '\$***.**',
-        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-          fontSize: 64,
-          fontWeight: FontWeight.w300,
-          letterSpacing: -3,
-        ),
-      );
+      return _buildBalanceRow(context, '***', '.**', isHidden: true);
     }
 
-    // Split typography: large whole, smaller decimal (like the reference)
+    // ── Offline / error with no cached value → show dash + badge ─
+    if (!hasMeaningfulValue &&
+        (walletState.hasError || walletState.isOffline)) {
+      return Column(
+        children: [
+          Text(
+            '\$—',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 64,
+              fontWeight: FontWeight.w400,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(.40),
+              letterSpacing: 0.4,
+              height: .88,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildStatusBadge(walletState),
+        ],
+      ).animate().fadeIn(duration: 400.ms);
+    }
+
+    // ── Normal display (with optional stale badge) ────────────
+    final total = displayTotal ?? 0.0;
+    final wholePart = total.toInt().toString();
+    final decimalPart = total.toStringAsFixed(2).split('.')[1];
+
+    return Column(
+      children: [
+        _buildBalanceRow(context, wholePart, '.$decimalPart'),
+
+        // Subtle "last known" badge when showing cached data
+        if ((walletState.hasError || walletState.isOffline) &&
+            hasMeaningfulValue) ...[
+          const SizedBox(height: 10),
+          _buildStatusBadge(walletState),
+        ],
+      ],
+    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.05, end: 0);
+  }
+
+  // ─── Shared balance row renderer ────────────────────────────────────────────
+
+  Widget _buildBalanceRow(
+    BuildContext context,
+    String whole,
+    String decimal, {
+    bool isHidden = false,
+  }) {
+    final opacity = isHidden ? .40 : .85;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: Text(
             '\$',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w300,
-              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w400,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
+              letterSpacing: 0.4,
+              fontSize: 28,
             ),
           ),
         ),
         Text(
-          wholePart,
-          style: Theme.of(context).textTheme.displayLarge?.copyWith(
-            fontSize: 72,
-            fontWeight: FontWeight.w300,
-            letterSpacing: -4,
-            height: 1,
+          whole,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontSize: 64,
+            fontWeight: FontWeight.w400,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(opacity),
+            letterSpacing: 0.4,
+            height: .88,
           ),
         ),
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: Text(
-            decimalPart,
+            decimal,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w300,
-              letterSpacing: -1,
-              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w400,
+              fontSize: 28,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withOpacity(opacity),
+              letterSpacing: 0.4,
             ),
           ),
         ),
@@ -224,102 +315,78 @@ return Scaffold(
     ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.05, end: 0);
   }
 
-  // ─── Reserve Info ────────────────────────────────────────
+  // ─── Status badge (offline / error) ─────────────────────────────────────────
 
-  Widget _buildReserveInfo(WalletState walletState) {
-    if (walletState.isLoading || _balanceHidden) return const SizedBox.shrink();
-    
-    const reserved = 2.0; // 0.5 base + 0.5 USDC trustline + 0.5-1.0 path intermediates
-    final availableXLM = (walletState.xlmBalance - reserved).clamp(0, double.infinity);
-    final availableUSD = availableXLM * (walletState.xlmPriceUSD ?? 0.0);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withOpacity(0.6),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+  Widget _buildStatusBadge(WalletState walletState) {
+    final isOffline = walletState.isOffline;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: (isOffline ? Colors.orange : DayFiColors.red).withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: (isOffline ? Colors.orange : DayFiColors.red).withOpacity(
+            0.25,
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Available to Use',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '\$${availableUSD.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Reserved (Minimum)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${reserved.toStringAsFixed(2)} XLM',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
-    ).animate().fadeIn(delay: 100.ms);
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isOffline ? Icons.wifi_off_rounded : Icons.sync_problem_rounded,
+            size: 12,
+            color: (isOffline ? Colors.orange : DayFiColors.red).withOpacity(
+              0.8,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            isOffline
+                ? (walletState.lastKnownTotal != null
+                      ? 'Offline · last known balance'
+                      : 'No connection')
+                : 'Couldn\'t refresh · pull to retry',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 11,
+              color: (isOffline ? Colors.orange : DayFiColors.red).withOpacity(
+                0.8,
+              ),
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 200.ms);
   }
 
   // ─── Portfolio chip ──────────────────────────────────────
 
   Widget _buildPortfolioChip(WalletState walletState) {
-    // Stacked coin emojis for held assets
     final heldAssets = <String>[];
-    if (walletState.usdcBalance > 0) heldAssets.add('🔵'); // USDC
-    if (walletState.xlmBalance > 0) heldAssets.add('⬛');   // XLM
+    if (walletState.usdcBalance > 0) {
+      heldAssets.add('assets/images/stellar.png');
+    }
+    if (walletState.xlmBalance > 0) heldAssets.add('assets/images/usdc.png');
     if (heldAssets.isEmpty) {
-      heldAssets.add('🔵');
-      heldAssets.add('⬛');
+      heldAssets.add('assets/images/stellar.png');
+      heldAssets.add('assets/images/usdc.png');
     }
 
     return GestureDetector(
       onTap: () => context.push('/portfolio'),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.1),
           borderRadius: BorderRadius.circular(40),
           border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.04),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Stacked emoji avatars
             SizedBox(
               width: 16.0 + (heldAssets.length * 16.0),
               height: 26,
@@ -339,9 +406,15 @@ return Scaffold(
                         ),
                       ),
                       child: Center(
-                        child: Text(
-                          heldAssets[i],
-                          style: const TextStyle(fontSize: 13),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.asset(
+                            heldAssets[i],
+                            fit: BoxFit.contain,
+                            height: heldAssets[i] == "assets/images/stellar.png"
+                                ? 20
+                                : 24,
+                          ),
                         ),
                       ),
                     ),
@@ -349,20 +422,25 @@ return Scaffold(
                 }),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 2),
             Text(
               'Portfolio',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                fontWeight: FontWeight.w400,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
+                letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            const SizedBox(width: 8),
+            RotatedBox(
+              quarterTurns: -1,
+              child: SvgPicture.asset(
+                "assets/icons/svgs/dropdown.svg",
+                height: 18,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+              ),
             ),
+            const SizedBox(width: 2),
           ],
         ),
       ),
@@ -377,17 +455,18 @@ return Scaffold(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.swap_horiz,
-            size: 14,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.35),
+          SvgPicture.asset(
+            "assets/icons/svgs/transactions.svg",
+            height: 18,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 8),
           Text(
             'Transactions',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.35),
-              letterSpacing: 0.1,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
+              letterSpacing: 0.4,
+              fontSize: 12,
             ),
           ),
         ],
@@ -401,12 +480,12 @@ return Scaffold(
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 72),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.1),
           borderRadius: BorderRadius.circular(40),
           border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.04),
           ),
         ),
         child: Row(
@@ -416,7 +495,7 @@ return Scaffold(
               label: 'Receive',
               onTap: () => context.push('/receive'),
             ),
-             _ActionButton(
+            _ActionButton(
               icon: "assets/icons/svgs/swap.svg",
               label: 'Swap',
               onTap: () => context.push('/swap'),
@@ -431,97 +510,122 @@ return Scaffold(
       ),
     ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.4, end: 0);
   }
+}
 
-  // ─── Slide-out menu ──────────────────────────────────────
+Widget _buildTopBar(context) {
+  return Opacity(
+    opacity: .45,
+    child: Image.asset("assets/images/word_logo.png", width: 88),
+  );
+}
 
-  Widget _buildMenu(AsyncValue<Map<String, dynamic>> userAsync) {
-    final items = [
-      // ('portfolio', '/portfolio'),
-      ('transactions', '/transactions'),
-      ('security', '/security'),
-      ('settings', '/settings'),
-      ('support', null),
-      ('fund wallet (test)', 'test-fund'),
-    ];
+// ─── Menu Overlay (separate route, no flash) ─────────────────────────────────
 
+class _MenuOverlay extends StatelessWidget {
+  final Animation<double> animation;
+  final void Function(String? route) onNavigate;
+  final VoidCallback onTestFund;
+
+  const _MenuOverlay({
+    required this.animation,
+    required this.onNavigate,
+    required this.onTestFund,
+  });
+
+  static const _items = [
+    ('transactions', '/transactions'),
+    ('security', '/security'),
+    ('settings', '/settings'),
+    ('support', null),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => setState(() => _menuOpen = false),
+      onTap: () => Navigator.of(context).pop(),
       child: AppBackground(
-        // color: Colors.transparent,
-        child: Container(
-          width: double.infinity,
-          // color: Theme.of(context).scaffoldBackgroundColor,
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              userAsync.when(
-                data: (u) => Padding(
-                  padding: const EdgeInsets.only(bottom: 40),
-                  child: Text(
-                    '@${u['username'] ?? ''}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.4),
-                    ),
-                  ),
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
-              ...items.map(
-                (item) => GestureDetector(
-                  onTap: () async {
-                    setState(() => _menuOpen = false);
-                    if (item.$2 == 'test-fund') {
-                      try {
-                        await apiService.testFundWallet();
-                        await ref.read(walletProvider.notifier).refresh();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('✅ Wallet funded with 1.0 XLM'),
-                              backgroundColor: Color(0xFF4CAF50),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('❌ Fund failed: $e'),
-                              backgroundColor: const Color(0xFFE53935),
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                        }
-                      }
-                    } else if (item.$2 != null) {
-                      context.push(item.$2!);
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    child: Text(
-                      item.$1,
-                      style:
-                          Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w300,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            centerTitle: true,
+            automaticallyImplyLeading: false,
+            title: _buildTopBar(context),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: SvgPicture.asset(
+                    "assets/icons/svgs/menu.svg",
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.55),
                   ),
                 ),
               ),
             ],
           ),
+          body: SizedBox.expand(
+            child: Column(
+              children: [
+                const Expanded(child: SizedBox()),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: List.generate(_items.length, (i) {
+                    final item = _items[i];
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (ctx, child) {
+                        // Stagger: each item starts slightly later
+                        final staggered = CurvedAnimation(
+                          parent: animation,
+                          curve: Interval(
+                            i * 0.08,
+                            (i * 0.08 + 0.6).clamp(0.0, 1.0),
+                            curve: Curves.easeOutCubic,
+                          ),
+                        );
+                        return Transform.translate(
+                          offset: Offset(60 * (1 - staggered.value), 0),
+                          child: Opacity(
+                            opacity: staggered.value.clamp(0.0, 1.0),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          onNavigate(item.$2);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            item.$1,
+                            style: Theme.of(context).textTheme.displayLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 38,
+                                  letterSpacing: -0.8,
+                                ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const Expanded(child: SizedBox()),
+                const Text("dayfi wallet v1.0.1 (Build 34)"),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
         ),
       ),
-    ).animate().fadeIn(duration: 180.ms);
+    );
   }
 }
 
@@ -544,25 +648,24 @@ class _ActionButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 9),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SvgPicture.asset(
                 icon,
                 height: 22,
-                color:
-                    Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withOpacity(0.55),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(.60),
                   fontWeight: FontWeight.w400,
+                  letterSpacing: -0.1,
                 ),
               ),
             ],

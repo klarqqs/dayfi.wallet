@@ -2,13 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/main.dart';
+import 'package:mobile_app/widgets/app_background.dart';
+import 'package:mobile_app/widgets/app_bottomsheet.dart'
+    show showDayFiBottomSheet;
 import 'package:package_info_plus/package_info_plus.dart';
-import '../../providers/user_provider.dart';
-import '../../providers/wallet_provider.dart';
 import '../../services/api_service.dart';
-import '../../theme/app_theme.dart';
 import '../home/home_screen.dart'; // for userProvider
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -36,298 +37,309 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Log out', style: Theme.of(context).textTheme.titleLarge),
-        content: Text(
-          'Are you sure you want to log out?',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      await apiService.clearToken();
-      context.go('/onboarding');
+    await apiService.clearToken();
+    context.go('/onboarding');
+  }
+
+  String _getThemeLabel(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+      case ThemeMode.system:
+        return 'Device';
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final userAsync = ref.watch(userProvider);
-    final walletState = ref.watch(walletProvider);
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        leading: GestureDetector(
-          onTap: () => context.pop(),
-          child: const Icon(Icons.arrow_back_ios, size: 20),
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+  void _showThemePicker(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeMode currentTheme,
+  ) {
+    showDayFiBottomSheet(
+      context: context,
+      // backgroundColor: Theme.of(context).colorScheme.surface,
+      // shape: const RoundedRectangleBorder(
+      //   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      // ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Profile header ────────────────────────────
-            userAsync
-                .when(
-                  data: (u) => Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.08),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  (u['username'] as String? ?? 'U')[0]
-                                      .toUpperCase(),
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '@${u['username'] ?? ''}',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                                Text(
-                                  u['email'] ?? '',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        // Backup warning if not backed up
-                        if (u['isBackedUp'] == false) ...[
-                          const SizedBox(height: 14),
-                          GestureDetector(
-                            onTap: () => context.push('/security/phrase'),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: DayFiColors.redDim,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: DayFiColors.red,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Your wallet is not backed up. Tap to back up now.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(color: DayFiColors.red),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Opacity(opacity: 0, child: Icon(Icons.close)),
+                Text(
+                  'Choose Theme',
+                  style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                    fontSize: 16,
+                    letterSpacing: -.1,
                   ),
-                  loading: () => const SizedBox(
-                    height: 80,
-                    child: Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                  error: (_, __) => const SizedBox.shrink(),
-                )
-                .animate()
-                .fadeIn(),
-
-            const SizedBox(height: 24),
-
-            // ── Preferences ───────────────────────────────
-            _SectionLabel('Preferences'),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.08),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      isDark ? Icons.dark_mode : Icons.light_mode,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      'Dark Mode',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Switch(
-                    value: isDark,
-                    onChanged: (val) =>
-                        ref.read(themeModeProvider.notifier).state = val
-                        ? ThemeMode.dark
-                        : ThemeMode.light,
-                  ),
-                ],
-              ),
-            ).animate().fadeIn(delay: 100.ms),
-
-            const SizedBox(height: 24),
-
-            // ── Security ──────────────────────────────────
-            _SectionLabel('Security'),
-            _SettingsTile(
-              icon: Icons.shield_outlined,
-              label: 'Security',
-              subtitle: 'Face ID · Recovery phrase',
-              onTap: () => context.push('/security'),
-            ).animate().fadeIn(delay: 150.ms),
-
-            const SizedBox(height: 24),
-
-            // ── Support ───────────────────────────────────
-            _SectionLabel('Support'),
-            _SettingsTile(
-              icon: Icons.help_outline,
-              label: 'FAQs',
-              subtitle: 'Frequently asked questions',
-              onTap: () {
-                /* TODO: open FAQ */
-              },
-            ).animate().fadeIn(delay: 200.ms),
-
-            const SizedBox(height: 8),
-            _SettingsTile(
-              icon: Icons.info_outline,
-              label: 'App Version',
-              subtitle: _appVersion,
-              onTap: () {},
-              showChevron: false,
-            ).animate().fadeIn(delay: 220.ms),
-
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            ),
             const SizedBox(height: 32),
-
-            // ── Log out ───────────────────────────────────
-            GestureDetector(
-              onTap: _logout,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: DayFiColors.redDim,
-                  borderRadius: BorderRadius.circular(16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _ThemeOption(
+                  label: 'Light',
+                  icon: Icons.light_mode,
+                  isSelected: currentTheme == ThemeMode.light,
+                  onTap: () {
+                    ref.read(themeModeProvider.notifier).state =
+                        ThemeMode.light;
+                    Navigator.pop(context);
+                  },
                 ),
-                child: Text(
-                  'Log out',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: DayFiColors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
+                _ThemeOption(
+                  label: 'Dark',
+                  icon: Icons.dark_mode,
+                  isSelected: currentTheme == ThemeMode.dark,
+                  onTap: () {
+                    ref.read(themeModeProvider.notifier).state = ThemeMode.dark;
+                    Navigator.pop(context);
+                  },
                 ),
-              ),
-            ).animate().fadeIn(delay: 300.ms),
-
-            const SizedBox(height: 32),
+                _ThemeOption(
+                  label: 'Device',
+                  icon: Icons.phone_iphone,
+                  isSelected: currentTheme == ThemeMode.system,
+                  onTap: () {
+                    ref.read(themeModeProvider.notifier).state =
+                        ThemeMode.system;
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
-}
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel(this.label);
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text(
-      label,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
+  Widget build(BuildContext context) {
+    final userAsync = ref.watch(userProvider);
+    final themeMode = ref.watch(themeModeProvider);
+
+    return AppBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: Text(
+            'Settings',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.color!.withOpacity(.95),
+              fontWeight: FontWeight.w500,
+              fontSize: 16,
+              letterSpacing: -0.1,
+            ),
+          ),
+          leading: GestureDetector(
+            onTap: () => context.pop(),
+            child: const Icon(Icons.arrow_back_ios, size: 20),
+          ),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            children: [
+              // ── Profile header ────────────────────────────
+              userAsync
+                  .when(
+                    data: (u) => Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0),
+                            Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0.025),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '@${u['username'] ?? ''}',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 20,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            u['email'] ?? '',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 16,
+                                  letterSpacing: -0.1,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          // const SizedBox(height: 8),
+
+                          // Backup warning if not backed up
+                          if (u['isBackedUp'] == false) ...[
+                            const SizedBox(height: 14),
+                            GestureDetector(
+                              onTap: () => context.push('/security/phrase'),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset(
+                                    "assets/icons/svgs/alert2.svg",
+                                    color: const Color.fromARGB(
+                                      255,
+                                      232,
+                                      172,
+                                      9,
+                                    ),
+                                    height: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Backup your account to iCloud',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: const Color.fromARGB(
+                                            255,
+                                            232,
+                                            172,
+                                            9,
+                                          ),
+                                          fontSize: 14,
+                                          letterSpacing: -0.2,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    loading: () => const SizedBox(
+                      height: 80,
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    error: (_, __) => const SizedBox.shrink(),
+                  )
+                  .animate()
+                  .fadeIn(),
+
+              const SizedBox(height: 32),
+
+              _SettingsTile(
+                icon: "assets/icons/svgs/theme.svg",
+                label: 'Theme',
+                subtitle: _getThemeLabel(themeMode),
+                onTap: () => _showThemePicker(context, ref, themeMode),
+              ).animate().fadeIn(delay: 200.ms),
+
+              const SizedBox(height: 10),
+
+              _SettingsTile(
+                icon: "assets/icons/svgs/faqs.svg",
+                label: 'FAQs',
+                subtitle: 'Frequently asked questions',
+                onTap: () {},
+              ).animate().fadeIn(delay: 200.ms),
+
+              const SizedBox(height: 10),
+              _SettingsTile(
+                icon: "assets/icons/svgs/app.svg",
+                label: 'App Version',
+                subtitle: _appVersion,
+                onTap: () {},
+                // showChevron: false,
+              ).animate().fadeIn(delay: 220.ms),
+
+              const SizedBox(height: 10),
+
+              // ── Log out ───────────────────────────────────
+              GestureDetector(
+                onTap: _logout,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset(
+                        "assets/icons/svgs/logout.svg",
+                        height: 24,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.95),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        'Log out',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w400,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.95),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(delay: 300.ms),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SettingsTile extends StatelessWidget {
-  final IconData icon;
+  final String icon;
   final String label;
   final String? subtitle;
-  final Color? iconColor;
-  final bool showChevron;
   final VoidCallback onTap;
 
   const _SettingsTile({
     required this.icon,
     required this.label,
     this.subtitle,
-    this.iconColor,
-    this.showChevron = true,
     required this.onTap,
   });
 
@@ -336,59 +348,124 @@ class _SettingsTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
-          ),
+          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
         ),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: (iconColor ?? Theme.of(context).colorScheme.onSurface)
-                    .withOpacity(0.06),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color:
-                    iconColor ??
-                    Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
+            SvgPicture.asset(
+              icon,
+              height: 24,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.95),
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                ],
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.95),
+                  fontSize: 15,
+                ),
               ),
             ),
-            if (showChevron)
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-              ),
+
+            label == 'Theme'
+                ? Text(
+                    subtitle!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.95),
+                      fontSize: 15,
+                    ),
+                  )
+                : label == 'App Version'
+                ? Text(
+                    "v1.0.1 (build: 47)",
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.95),
+                      fontSize: 15,
+                    ),
+                  )
+                : Icon(
+                    Icons.chevron_right,
+                    size: 24,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.85),
+                  ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── ThemeOption Widget ───────────────────────────────────────
+
+class _ThemeOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeOption({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                width: isSelected ? 2 : 1.5,
+              ),
+              color: Theme.of(
+                context,
+              ).textTheme.bodySmall?.color?.withOpacity(0.05),
+            ),
+            child: Icon(
+              icon,
+              size: 32,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.95)
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ],
       ),
     );
   }

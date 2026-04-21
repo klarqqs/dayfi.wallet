@@ -43,6 +43,8 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final LocalAuthentication _localAuth = LocalAuthentication();
+  DateTime? _lastAuthTime;
+  static const int _sessionTimeoutMinutes = 10;
 
   AuthNotifier() : super(const AuthState()) {
     _init();
@@ -122,14 +124,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<bool> authenticateWithFaceId() async {
     if (!state.faceIdEnabled) return true;
+    
+    // Check if session is still valid (within timeout)
+    final now = DateTime.now();
+    if (_lastAuthTime != null &&
+        now.difference(_lastAuthTime!).inMinutes < _sessionTimeoutMinutes) {
+      return true; // Session still valid, skip re-authentication
+    }
+    
     try {
-      return await _localAuth.authenticate(
+      final result = await _localAuth.authenticate(
         localizedReason: 'Sign in to DayFi',
         options: const AuthenticationOptions(
           biometricOnly: true,
           stickyAuth: true,
         ),
       );
+      
+      if (result) {
+        _lastAuthTime = now; // Record successful authentication time
+      }
+      
+      return result;
     } catch (_) {
       return false;
     }

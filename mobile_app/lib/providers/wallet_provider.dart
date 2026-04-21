@@ -1,5 +1,7 @@
 // lib/providers/wallet_provider.dart
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
@@ -9,30 +11,33 @@ import '../services/api_service.dart';
 class WalletState {
   final double usdcBalance;
   final double xlmBalance;
-  final double xlmPriceUSD;   // live from CoinGecko
+  final double xlmPriceUSD;
   final String? stellarAddress;
   final String? dayfiUsername;
   final bool isLoading;
   final bool isRefreshing;
   final String? error;
   final DateTime? lastUpdated;
+  final bool hasError;
+  final bool isOffline;
+  final double? lastKnownTotal;
 
   const WalletState({
     this.usdcBalance = 0.0,
     this.xlmBalance = 0.0,
-    this.xlmPriceUSD = 0.169,  // fallback
+    this.xlmPriceUSD = 0.169,
     this.stellarAddress,
     this.dayfiUsername,
     this.isLoading = false,
     this.isRefreshing = false,
     this.error,
     this.lastUpdated,
+    this.hasError = false,
+    this.isOffline = false,
+    this.lastKnownTotal,
   });
 
-  // ✅ Real total: USDC (1:1) + XLM at live price
   double get totalUSD => usdcBalance + (xlmBalance * xlmPriceUSD);
-
-  // Available XLM after 1 XLM reserve requirement
   double get availableXLM => xlmBalance > 1.0 ? xlmBalance - 1.0 : 0.0;
   double get availableXLMUSD => availableXLM * xlmPriceUSD;
 
@@ -46,6 +51,9 @@ class WalletState {
     bool? isRefreshing,
     String? error,
     DateTime? lastUpdated,
+    bool? hasError,
+    bool? isOffline,
+    double? lastKnownTotal,
   }) {
     return WalletState(
       usdcBalance: usdcBalance ?? this.usdcBalance,
@@ -57,6 +65,9 @@ class WalletState {
       isRefreshing: isRefreshing ?? this.isRefreshing,
       error: error,
       lastUpdated: lastUpdated ?? this.lastUpdated,
+      hasError: hasError ?? this.hasError,
+      isOffline: isOffline ?? this.isOffline,
+      lastKnownTotal: lastKnownTotal ?? this.lastKnownTotal,
     );
   }
 }
@@ -70,19 +81,55 @@ class WalletNotifier extends StateNotifier<WalletState> {
 
   Future<double> _fetchXlmPrice() async {
     try {
-      final res = await http.get(Uri.parse(
-        'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd',
-      )).timeout(const Duration(seconds: 8));
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd',
+            ),
+          )
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return (data['stellar']['usd'] as num).toDouble();
       }
     } catch (_) {}
-    return 0.169; // fallback if CoinGecko is unreachable
+    return state.xlmPriceUSD; // reuse last known price rather than hardcoded fallback
   }
 
+  // ─── Helpers ────────────────────────────────────────────
+
+  /// Returns the best "last known total" to preserve across failures.
+  /// Only updates when we have a confirmed successful fetch with a live price.
+  double? _computeLastKnown({
+    required double usdcBalance,
+    required double xlmBalance,
+    required double xlmPrice,
+  }) {
+    final live = usdcBalance + (xlmBalance * xlmPrice);
+    // Only save as lastKnown if it's a meaningful non-zero value
+    return live > 0 ? live : state.lastKnownTotal;
+  }
+
+  bool _isNetworkError(Object e) {
+    return e is SocketException ||
+        e is TimeoutException ||
+        e.toString().contains('SocketException') ||
+        e.toString().contains('TimeoutException') ||
+        e.toString().contains('Failed host lookup') ||
+        e.toString().contains('Network is unreachable') ||
+        e.toString().contains('Connection refused');
+  }
+
+  // ─── Initial load ────────────────────────────────────────
+
   Future<void> load() async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      hasError: false,
+      isOffline: false,
+      error: null,
+    );
+
     try {
       final results = await Future.wait([
         apiService.getBalance(),
@@ -92,26 +139,58 @@ class WalletNotifier extends StateNotifier<WalletState> {
 
       final balanceData = results[0] as Map<String, dynamic>;
       final addressData = results[1] as Map<String, dynamic>;
-      final xlmPrice   = results[2] as double;
-      final balances   = balanceData['balances'] as Map<String, dynamic>? ?? {};
+      final xlmPrice = results[2] as double;
+      final balances = balanceData['balances'] as Map<String, dynamic>? ?? {};
+
+      final usdc = (balances['USDC'] as num?)?.toDouble() ?? 0.0;
+      final xlm = (balances['XLM'] as num?)?.toDouble() ?? 0.0;
 
       state = state.copyWith(
-        usdcBalance:    (balances['USDC'] as num?)?.toDouble() ?? 0.0,
-        xlmBalance:     (balances['XLM']  as num?)?.toDouble() ?? 0.0,
-        xlmPriceUSD:    xlmPrice,
+        usdcBalance: usdc,
+        xlmBalance: xlm,
+        xlmPriceUSD: xlmPrice,
         stellarAddress: addressData['stellarAddress'] as String?,
-        dayfiUsername:  addressData['dayfiUsername']  as String?,
-        isLoading:      false,
-        lastUpdated:    DateTime.now(),
+        dayfiUsername: addressData['dayfiUsername'] as String?,
+        isLoading: false,
+        hasError: false,
+        isOffline: false,
+        lastKnownTotal: _computeLastKnown(
+          usdcBalance: usdc,
+          xlmBalance: xlm,
+          xlmPrice: xlmPrice,
+        ),
+        lastUpdated: DateTime.now(),
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      final offline = _isNetworkError(e);
+      state = state.copyWith(
+        isLoading: false,
+        hasError: !offline,
+        isOffline: offline,
+        error: e.toString(),
+        // balances stay at 0 on first load failure — lastKnownTotal is null
+        // so the UI will show $— instead of $0.00
+      );
     }
   }
 
+  // ─── Periodic / pull-to-refresh ──────────────────────────
+
   Future<void> refresh() async {
     if (state.isRefreshing) return;
-    state = state.copyWith(isRefreshing: true, error: null);
+
+    // Snapshot the best "previous total" before touching state
+    final previousTotal = state.totalUSD > 0
+        ? state.totalUSD
+        : state.lastKnownTotal;
+
+    state = state.copyWith(
+      isRefreshing: true,
+      hasError: false,
+      isOffline: false,
+      error: null,
+    );
+
     try {
       final results = await Future.wait([
         apiService.getBalance(),
@@ -119,33 +198,60 @@ class WalletNotifier extends StateNotifier<WalletState> {
       ]);
 
       final balanceData = results[0] as Map<String, dynamic>;
-      final xlmPrice    = results[1] as double;
-      final balances    = balanceData['balances'] as Map<String, dynamic>? ?? {};
+      final xlmPrice = results[1] as double;
+      final balances = balanceData['balances'] as Map<String, dynamic>? ?? {};
+
+      final usdc = (balances['USDC'] as num?)?.toDouble() ?? 0.0;
+      final xlm = (balances['XLM'] as num?)?.toDouble() ?? 0.0;
 
       state = state.copyWith(
-        usdcBalance:  (balances['USDC'] as num?)?.toDouble() ?? 0.0,
-        xlmBalance:   (balances['XLM']  as num?)?.toDouble() ?? 0.0,
-        xlmPriceUSD:  xlmPrice,
+        usdcBalance: usdc,
+        xlmBalance: xlm,
+        xlmPriceUSD: xlmPrice,
         isRefreshing: false,
-        lastUpdated:  DateTime.now(),
+        hasError: false,
+        isOffline: false,
+        lastKnownTotal: _computeLastKnown(
+          usdcBalance: usdc,
+          xlmBalance: xlm,
+          xlmPrice: xlmPrice,
+        ),
+        lastUpdated: DateTime.now(),
       );
     } catch (e) {
-      state = state.copyWith(isRefreshing: false, error: e.toString());
+      final offline = _isNetworkError(e);
+      state = state.copyWith(
+        isRefreshing: false,
+        hasError: !offline,
+        isOffline: offline,
+        error: e.toString(),
+        // Restore balances from last known so UI doesn't flash 0.00
+        usdcBalance: state.usdcBalance,
+        xlmBalance: state.xlmBalance,
+        lastKnownTotal: previousTotal,
+      );
     }
   }
 
-Future<Map<String, dynamic>> send({
-  required String to,
-  required double amount,
-  required String asset,
-  String? memo,
-}) async {
-  final result = await apiService.sendFunds(
-    to: to, amount: amount, asset: asset, memo: memo,
-  );
-  await refresh();
-  return result;
-}
+  // ─── Send ────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> send({
+    required String to,
+    required double amount,
+    required String asset,
+    String? memo,
+  }) async {
+    final result = await apiService.sendFunds(
+      to: to,
+      amount: amount,
+      asset: asset,
+      memo: memo,
+    );
+    await refresh();
+    return result;
+  }
+
+  // ─── Resolve recipient ───────────────────────────────────
 
   Future<Map<String, dynamic>?> resolveRecipient(String identifier) async {
     if (identifier.length < 3) return null;
@@ -159,13 +265,24 @@ Future<Map<String, dynamic>> send({
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
-final walletProvider =
-    StateNotifierProvider<WalletNotifier, WalletState>((ref) {
+final walletProvider = StateNotifierProvider<WalletNotifier, WalletState>((
+  ref,
+) {
   return WalletNotifier();
 });
 
-final usdcBalanceProvider  = Provider<double>((ref) => ref.watch(walletProvider).usdcBalance);
-final xlmBalanceProvider   = Provider<double>((ref) => ref.watch(walletProvider).xlmBalance);
-final xlmPriceProvider     = Provider<double>((ref) => ref.watch(walletProvider).xlmPriceUSD);
-final walletAddressProvider = Provider<String?>((ref) => ref.watch(walletProvider).stellarAddress);
-final dayfiUsernameProvider = Provider<String?>((ref) => ref.watch(walletProvider).dayfiUsername);
+final usdcBalanceProvider = Provider<double>(
+  (ref) => ref.watch(walletProvider).usdcBalance,
+);
+final xlmBalanceProvider = Provider<double>(
+  (ref) => ref.watch(walletProvider).xlmBalance,
+);
+final xlmPriceProvider = Provider<double>(
+  (ref) => ref.watch(walletProvider).xlmPriceUSD,
+);
+final walletAddressProvider = Provider<String?>(
+  (ref) => ref.watch(walletProvider).stellarAddress,
+);
+final dayfiUsernameProvider = Provider<String?>(
+  (ref) => ref.watch(walletProvider).dayfiUsername,
+);

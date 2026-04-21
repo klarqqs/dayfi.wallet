@@ -1,10 +1,12 @@
 // lib/screens/auth/biometric_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../theme/app_theme.dart';
+import '../../widgets/auth_button.dart';
+import '../../widgets/app_background.dart';
 
 class BiometricScreen extends StatefulWidget {
   const BiometricScreen({super.key});
@@ -37,7 +39,10 @@ class _BiometricScreenState extends State<BiometricScreen> {
     try {
       final ok = await _auth.authenticate(
         localizedReason: 'Enable Face ID to secure your wallet',
-        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
       );
       if (ok && mounted) {
         final prefs = await SharedPreferences.getInstance();
@@ -47,9 +52,9 @@ class _BiometricScreenState extends State<BiometricScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Face ID setup failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Face ID setup failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -64,52 +69,93 @@ class _BiometricScreenState extends State<BiometricScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+    return AppBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(flex: 3),
-              Container(
-                width: 100, height: 100,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+              const SizedBox(height: 24),
+              // Back button (only if can pop)
+              if (context.canPop())
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () => context.pop(),
+                    child: const Icon(Icons.arrow_back_ios, size: 20),
                   ),
                 ),
-                child: Icon(Icons.face_retouching_natural, size: 48,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+
+              const Spacer(flex: 1),
+
+              // Icon
+              SvgPicture.asset(
+                'assets/icons/svgs/faceid.svg',
+                height: 80,
               ).animate().scale(delay: 100.ms),
-              const SizedBox(height: 32),
-              Text('Enable Face ID',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                  textAlign: TextAlign.center).animate().fadeIn(delay: 200.ms),
-              const SizedBox(height: 12),
-              Text('Use Face ID every time you open\nthe app to keep your wallet secure.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center).animate().fadeIn(delay: 300.ms),
-              const Spacer(flex: 3),
+
+              const SizedBox(height: 28),
+
+              // Title
+              Text(
+                'Enable Face ID',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  height: 1.09,
+                  fontSize: 36,
+                ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
+
+              const SizedBox(height: 18),
+
+              // Subtitle
+              Text(
+                'Use Face ID every time you open the app to keep your wallet secure.',
+                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                  fontSize: 16,
+                  letterSpacing: -0.3,
+                  height: 1.3,
+                ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
+
+              const Spacer(flex: 4),
+
+              // Continue button
               if (_available)
-                ElevatedButton(
-                  onPressed: _loading ? null : _enable,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                      : const Text('Enable Face ID'),
+                AuthButton(
+                  label: 'Enable Face ID',
+                  onPressed: _enable,
+                  isLoading: _loading,
+                  loadingText: 'Setting up...',
                 ).animate().fadeIn(delay: 400.ms),
+
               const SizedBox(height: 16),
+
+              // Skip button
               TextButton(
                 onPressed: _skip,
-                child: const Text('Not now'),
+                child: Text(
+                  'Not now',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
               ).animate().fadeIn(delay: 500.ms),
+
               const SizedBox(height: 32),
             ],
           ),
         ),
       ),
+    ),
     );
   }
 }
