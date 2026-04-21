@@ -1,10 +1,8 @@
 # DayFi
 
-> Send money with just a username. USDC wallet on Stellar.
+> Send money with just a username. Multi-asset wallet on Stellar.
 
 ## Project Structure
-
-```
 dayfi/
 ├── backend/          # Node.js + Express + Prisma
 │   ├── src/
@@ -18,10 +16,9 @@ dayfi/
 │   ├── services/     # api_service
 │   └── theme/        # app_theme
 └── website/          # Landing page
-```
+
 
 ## Backend Setup
-
 ```bash
 cd backend
 cp .env.example .env
@@ -36,11 +33,12 @@ npm run dev
 
 | Key | Description |
 |-----|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | 64-char random hex |
-| `WALLET_ENCRYPTION_KEY` | 64-char hex (32 bytes) |
-| `STELLAR_NETWORK` | `testnet` or `mainnet` |
-| `RESEND_API_KEY` | From resend.com |
+| DATABASE_URL | PostgreSQL connection string |
+| JWT_SECRET | 64-char random hex |
+| WALLET_ENCRYPTION_KEY | 64-char hex (32 bytes) |
+| STELLAR_NETWORK | testnet or mainnet |
+| USDC_ISSUER | USDC issuer address |
+| RESEND_API_KEY | From resend.com |
 
 Generate secrets:
 ```bash
@@ -48,7 +46,6 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
 ## Flutter App Setup
-
 ```bash
 flutter pub get
 flutter run
@@ -74,7 +71,6 @@ Add to `android/app/src/main/AndroidManifest.xml`:
 ```
 
 ## Docker Deployment
-
 ```bash
 cp backend/.env.example backend/.env
 # Fill in values
@@ -83,37 +79,38 @@ docker compose up -d
 ```
 
 Services:
-- Backend API: `http://localhost:3001`
-- Website: `http://localhost:80`
-- Postgres: `localhost:5432`
+- Backend API: http://localhost:3001
+- Website: http://localhost:80
+- Postgres: localhost:5432
 
 ## API Endpoints
 
 ### Auth
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/auth/send-otp` | Send OTP to email |
-| POST | `/api/auth/verify-otp` | Verify OTP, get token |
-| POST | `/api/auth/setup-username` | Set @dayfi.me username |
-| GET  | `/api/auth/check-username/:u` | Check availability |
+| POST | /api/auth/send-otp | Send OTP to email |
+| POST | /api/auth/verify-otp | Verify OTP, get token |
+| POST | /api/auth/setup-username | Set @dayfi.me username |
+| GET  | /api/auth/check-username/:u | Check availability |
 
 ### Wallet
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/wallet/balance` | Get USDC + XLM balances |
-| POST | `/api/wallet/send` | Send USDC or XLM |
-| GET | `/api/wallet/address` | Get wallet address + QR data |
-| GET | `/api/wallet/resolve/:id` | Resolve username or address |
+| GET | /api/wallet/balance | Get balances (USDC, XLM, GOLD, BTC) |
+| POST | /api/wallet/send | Send any supported asset |
+| POST | /api/wallet/swap | Swap between assets |
+| GET | /api/wallet/address | Get wallet address + QR data |
+| GET | /api/wallet/resolve/:id | Resolve username or address |
 
 ### Transactions
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/transactions` | Paginated history |
-| GET | `/api/transactions/:id` | Single transaction |
+| GET | /api/transactions | Paginated history |
+| GET | /api/transactions/:id | Single transaction |
 
 ## Network
 
-- **Stellar Testnet** (default): Free testnet USDC via Friendbot
+- **Stellar Testnet** (default): Free testnet assets via Friendbot
 - **Stellar Mainnet**: Set `STELLAR_NETWORK=mainnet` and `USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`
 
 ## Swap & Liquidity
@@ -123,33 +120,25 @@ Services:
 | Pair | Liquidity | Status | Notes |
 |------|-----------|--------|-------|
 | USDC ↔ XLM | High | ✅ Prod-Ready | Most liquid pair on Stellar DEX |
-| GOLD ↔ USDC | Medium | ⚠️ Monitor | Gold is newer, may have variable liquidity |
-| GOLD ↔ XLM | Medium | ⚠️ Monitor | Dependent on GOLD market depth |
+| BTC ↔ USDC | Medium | ⚠️ Monitor | Depends on BTC token liquidity |
+| GOLD ↔ USDC | Medium | ⚠️ Monitor | Gold is newer, may vary |
+| GOLD ↔ XLM | Medium | ⚠️ Monitor | Dependent on market depth |
 
 ### Liquidity Concerns
 
 **What is liquidity?**
-Liquidity refers to the ease of trading an asset. On Stellar's DEX, it's determined by order book depth — how many buy/sell orders exist at various prices.
+Liquidity refers to how easily an asset can be traded on Stellar’s DEX.
 
 **⚠️ Low Liquidity Risks:**
 
-1. **Swap Fails**: If there's no path to exchange the amount you request, the swap is rejected with "No liquidity path found"
-   - **Solution**: Try a smaller amount or use a different pair
-
-2. **High Slippage**: Swaps may execute at a worse-than-quoted price if order book is thin
-   - **Mitigation**: We enforce 2% slippage tolerance (0.98x multiplier) by default
-   - **User sees**: "Swap rejected — slippage too high" if price moved >2%
-
-3. **GOLD Volatility**: Gold token (MELD) is less established than USDC/XLM
-   - **Risk**: Lower trading volume = higher spreads and potential failed swaps
-   - **Recommendation**: Test GOLD swaps with small amounts first
+1. **Swap Fails**: No path → transaction fails.
+2. **High Slippage**: Price worsens due to thin order book. We enforce 2% slippage tolerance.
+3. **Tokenized Asset Risk**: GOLD and BTC depend on issuer + market depth. Lower volume = higher spread.
 
 ### Testing Before Production
 
-Before users deposit real funds, test these scenarios:
-
 ```bash
-# 1. Test high-liquidity pair (should always work)
+# 1. Test high-liquidity pair (USDC -> XLM)
 curl -X POST http://localhost:3001/api/wallet/swap \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
@@ -168,38 +157,30 @@ curl -X POST http://localhost:3001/api/wallet/swap \
     "toAsset": "USDC",
     "amount": 0.5
   }'
-
-# 3. Test small amounts first, gradually increase
-# Start: 0.1 GOLD → 1 GOLD → 10 GOLD
-
-# 4. Monitor stellar.expert for order book depth:
-# https://stellar.expert/explorer/public/asset/GOLD-GDBE77Z976GZ66WQSBCYI3S7A67T5OVCB57FPR35CCV72L7DQXNGA476
 ```
 
 ### What Users Should Know
 
 📢 **Display these warnings in the UI:**
 
-> **Swap Limitations:**
-> - USDC ↔ XLM: Very fast, always available
-> - GOLD swaps: May fail if insufficient market liquidity — try smaller amounts
-> - Slippage: Swap prices may shift during execution (2% tolerance applied)
-> - Stellar DEX processes swaps in ~5 seconds; failed swaps cost only ~0.00001 XLM
+- **USDC ↔ XLM**: Fast and reliable.
+- **BTC / GOLD swaps**: May fail for large amounts; try smaller increments.
+- **Settlement**: ~5 second settlement time on Stellar.
+- **Fees**: Failed swaps cost only ~0.00001 XLM.
 
 ### Production Readiness Checklist
 
-- [ ] Monitor Stellar DEX order books daily (especially GOLD pairs)
-- [ ] Set up alerts if GOLD liquidity drops below threshold (e.g., <$10k)
-- [ ] Test with realistic user volume (10–100 concurrent swaps)
-- [ ] Document error messages for users (show actionable help text)
-- [ ] Have manual intervention process if DEX liquidity becomes problematic
-- [ ] Consider adding liquidity yourself if needed (deposit to DEX market maker)
+- [ ] Monitor Stellar DEX liquidity (especially GOLD/BTC)
+- [ ] Alert on low liquidity thresholds
+- [ ] Load test swaps (10–100 concurrent users)
+- [ ] Show clear user error messages
+- [ ] Have fallback plan for liquidity issues
 
 ## Tech Stack
 
 - **Backend**: Node.js 20, Express, Prisma, PostgreSQL, Stellar SDK
 - **Mobile**: Flutter 3, Riverpod, GoRouter, Dio, local_auth
-- **Blockchain**: Stellar Network, USDC (Circle)
+- **Blockchain**: Stellar Network (USDC, XLM, GOLD, BTC)
 - **Auth**: Email OTP + JWT + Face ID
 - **Notifications**: Firebase Cloud Messaging
-- **Email**: Resend / Nodemailer
+- **Email**: Resend 

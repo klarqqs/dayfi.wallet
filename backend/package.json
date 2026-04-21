@@ -1,7 +1,7 @@
 {
   "name": "dayfi-backend",
   "version": "1.0.0",
-  "description": "DayFi Wallet Backend - Stellar USDC wallet with @dayfi.me usernames",
+  "description": "DayFi Backend - Stellar USDC wallet with @dayfi.me usernames",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

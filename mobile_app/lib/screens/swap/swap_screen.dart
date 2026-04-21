@@ -584,7 +584,7 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
         ),
         body: SafeArea(
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -764,43 +764,42 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                   ),
                 ).animate().fadeIn(delay: 150.ms),
 
-                // Available balance hint
-                if (_quoteError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6, left: 4),
-                    child: InkWell(
-                      splashColor: Colors.transparent,
-                      highlightColor: Colors.transparent,
-                      hoverColor: Colors.transparent,
-                      onTap: _executing
-                          ? null
-                          : () {
-                              final toUse = available - _estimatedFeeXLM();
-                              _fromAmountController.text = toUse
-                                  .toStringAsFixed(_fromAsset == 'XLM' ? 4 : 2);
-                              _onAmountChanged(
-                                _fromAmountController.text,
-                                field: 'from',
-                              );
-                            },
-                      child: Text(
-                        _quoteError!,
-                        // 'Available: ${available.toStringAsFixed(_fromAsset == 'XLM' ? 4 : 2)} $_fromAsset',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _executing
-                              ? DayFiColors.red
-                              : _hasInsufficientBalance
-                              ? DayFiColors.red
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.4),
-                          fontWeight: _executing
-                              ? FontWeight.w500
-                              : FontWeight.w400,
-                        ),
+                // Available balance hint (always visible)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 4),
+                  child: InkWell(
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    onTap: _executing
+                        ? null
+                        : () {
+                            final toUse = available - _estimatedFeeXLM();
+                            _fromAmountController.text = toUse.toStringAsFixed(
+                              _fromAsset == 'XLM' ? 4 : 2,
+                            );
+                            _onAmountChanged(
+                              _fromAmountController.text,
+                              field: 'from',
+                            );
+                          },
+                    child: Text(
+                      _hasInsufficientBalance && _quoteError != null
+                          ? _quoteError!
+                          : 'Available: ${available.toStringAsFixed(_fromAsset == 'XLM' ? 4 : 6)} $_fromAsset',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _hasInsufficientBalance
+                            ? DayFiColors.red
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.4),
+                        fontWeight: _hasInsufficientBalance
+                            ? FontWeight.w500
+                            : FontWeight.w400,
                       ),
                     ),
                   ),
+                ),
 
                 const SizedBox(height: 12),
 
@@ -1008,14 +1007,14 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
                 //       ).textTheme.bodySmall?.copyWith(color: DayFiColors.green),
                 //     ),
                 // ).animate().fadeIn(),
-
-                // Quote details
-                if (_quote != null && !_hasInsufficientBalance) ...[
+                if ((_quote != null || _loadingQuote) &&
+                    !_hasInsufficientBalance) ...[
                   const SizedBox(height: 8),
                   _QuoteDetails(
-                    quote: _quote!,
+                    quote: _quote,
                     fromAsset: _fromAsset,
                     toAsset: _toAsset,
+                    isLoading: _loadingQuote,
                   ).animate().fadeIn(),
                   const SizedBox(height: 20),
                 ],
@@ -1220,20 +1219,41 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
 // ─── Quote Details ────────────────────────────────────────
 
 class _QuoteDetails extends StatelessWidget {
-  final Map<String, dynamic> quote;
+  final Map<String, dynamic>? quote;
   final String fromAsset;
   final String toAsset;
+  final bool isLoading;
 
   const _QuoteDetails({
     required this.quote,
     required this.fromAsset,
     required this.toAsset,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final price =
-        quote['price']?.toString() ?? quote['rate']?.toString() ?? '—';
+        quote?['price']?.toString() ?? quote?['rate']?.toString() ?? '—';
+
+    Widget value(String text) {
+      if (isLoading) {
+        return Container(
+          width: 60,
+          height: 10,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }
+      return Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1246,9 +1266,29 @@ class _QuoteDetails extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const _Row(label: 'Network', value: 'Stellar DEX'),
-          _Row(label: 'Rate', value: '1 $fromAsset = $price $toAsset'),
-          const _Row(label: 'Est. Time', value: '~5 seconds'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Network', style: Theme.of(context).textTheme.bodySmall),
+              value('Stellar DEX'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Rate', style: Theme.of(context).textTheme.bodySmall),
+              value('1 $fromAsset = $price $toAsset'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Est. Time', style: Theme.of(context).textTheme.bodySmall),
+              value('~5 seconds'),
+            ],
+          ),
         ],
       ),
     );

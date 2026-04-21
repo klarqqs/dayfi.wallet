@@ -99,7 +99,7 @@ export async function sendOTP(email, otp, isNewUser = false) {
         <p style="color:#666666;font-size:13px;font-family:'Inter',sans-serif;line-height:1.7;margin-top:8px;">
           ${isNewUser
             ? 'Enter this code in the DayFi app to create your USDC wallet.'
-            : 'Enter this code to access your DayFi wallet. Never share this code with anyone.'}
+            : 'Enter this code to access your DayFi. Never share this code with anyone.'}
         </p>
       </td>
     </tr>`;
@@ -163,7 +163,7 @@ export async function sendPaymentReceivedEmail(email, senderUsername, amount, as
         `, '#1A3326')}
         ${memo ? card(`<p style="color:#888888;font-size:13px;font-family:'Inter',sans-serif;">📝 ${memo}</p>`) : ''}
         <p style="color:#666666;font-size:13px;font-family:'Inter',sans-serif;line-height:1.7;margin-top:8px;">
-          Your payment is confirmed and available in your DayFi wallet.
+          Your payment is confirmed and available in your DayFi.
         </p>
       </td>
     </tr>`;

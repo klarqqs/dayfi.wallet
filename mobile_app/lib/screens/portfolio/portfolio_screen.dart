@@ -200,7 +200,7 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
                 await ref.read(walletProvider.notifier).refresh();
               },
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
+                physics: const ClampingScrollPhysics(),
                 child: _buildBody(context, walletState, txs),
               ),
             ),

@@ -640,7 +640,7 @@ class _MenuOverlay extends StatelessWidget {
                     }),
                   ),
                   const Expanded(child: SizedBox()),
-                  const Text("dayfi wallet v1.0.1 (Build 34)"),
+                  const Text("DayFi v1.0.1 (Build 34)"),
                   const SizedBox(height: 32),
                 ],
               ),
