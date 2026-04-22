@@ -40,6 +40,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       _selectedAsset = widget.initialAsset!;
     }
     _amountController.addListener(_validateAmount);
+    _toController.addListener(() => setState(() {}));
   }
 
   @override
@@ -75,13 +76,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   double _availableBalance(String asset) {
     final wallet = ref.read(walletProvider);
     if (asset == 'XLM') {
-      // Balance - 2.0 XLM reserve - fee (for multi-hop swaps)
-      return (wallet.xlmBalance - 2.0 - _estimatedFeeXLM()).clamp(
-        0,
-        double.infinity,
-      );
+      // Reserve 2.0 XLM for Stellar minimum + trustlines, fee is negligible
+      return (wallet.xlmBalance - 2.0).clamp(0, double.infinity);
     }
-    // USDC: full balance available (fee paid in XLM)
     return wallet.usdcBalance;
   }
 
@@ -653,7 +650,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                             ),
                           )
                         : null,
-                    errorText: _recipientError,
+
                     contentPadding: const EdgeInsets.symmetric(
                       vertical: 12,
                       horizontal: 10,
@@ -661,18 +658,30 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                   ),
                 ).animate().fadeIn(delay: 50.ms),
 
-                if (_resolvedRecipient != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _resolvedRecipient!['username'] ??
-                        _resolvedRecipient!['address'] ??
-                        '',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: DayFiColors.green,
-                      fontSize: 12,
+                if (_recipientError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      _recipientError!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  )
+                else if (_resolvedRecipient != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      _resolvedRecipient!['username'] ??
+                          _resolvedRecipient!['address'] ??
+                          'Recipient found on-chain',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: DayFiColors.green,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                ],
 
                 const SizedBox(height: 20),
 
@@ -807,57 +816,53 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
                 const SizedBox(height: 20),
 
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
-                    side: BorderSide(
-                      color:
-                          _loading ||
-                              _invalidAmount ||
-                              _amountController.text.isEmpty
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(.45)
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(.90),
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed:
-                      _loading ||
-                          _invalidAmount ||
-                          _amountController.text.isEmpty
-                      ? null
-                      : _send,
-
-                  label: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Send',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color:
-                              _loading ||
-                                  _invalidAmount ||
-                                  _amountController.text.isEmpty
-                              ? Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(.45)
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(.90),
-                          fontSize: 15,
-                        ),
+                // Replace OutlinedButton.icon with a plain OutlinedButton + full width
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                      side: BorderSide(
+                        color:
+                            _loading ||
+                                _invalidAmount ||
+                                _amountController.text.isEmpty
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(.45)
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(.90),
+                        width: 1.5,
                       ),
-                    ],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed:
+                        _loading ||
+                            _invalidAmount ||
+                            _amountController.text.isEmpty
+                        ? null
+                        : _send,
+                    child: Text(
+                      'Send',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color:
+                            _loading ||
+                                _invalidAmount ||
+                                _amountController.text.isEmpty
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(.45)
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(.90),
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                 ),
-
                 const SizedBox(height: 32),
               ],
             ),

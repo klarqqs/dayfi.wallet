@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://172.20.10.7:3001';
+  static const String baseUrl = 'https://dayfiwallet-production.up.railway.app';
 
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -30,8 +30,9 @@ class ApiService {
           handler.next(options);
         },
         onError: (error, handler) async {
-          if (error.response?.statusCode == 401)
+          if (error.response?.statusCode == 401) {
             await _storage.delete(key: 'auth_token');
+          }
           handler.next(error);
         },
       ),
@@ -83,18 +84,20 @@ class ApiService {
   Future<Map<String, dynamic>> getNetworkConfig() async =>
       (await _dio.get('/api/wallet/networks')).data;
 
-Future<Map<String, dynamic>> sendFunds({
-  required String to,
-  required double amount,
-  required String asset,
-  String? memo,
-}) async =>
-    (await _dio.post('/api/wallet/send', data: {
-      'to':     to,
+  Future<Map<String, dynamic>> sendFunds({
+    required String to,
+    required double amount,
+    required String asset,
+    String? memo,
+  }) async => (await _dio.post(
+    '/api/wallet/send',
+    data: {
+      'to': to,
       'amount': amount,
-      'asset':  asset,
+      'asset': asset,
       if (memo != null) 'memo': memo,
-    })).data;
+    },
+  )).data;
 
   Future<Map<String, dynamic>> resolveRecipient(String identifier) async =>
       (await _dio.get('/api/wallet/resolve/$identifier')).data;
@@ -175,35 +178,35 @@ Future<Map<String, dynamic>> sendFunds({
         queryParameters: {'id': txId},
       )).data;
 
-// ─── Swap ─────────────────────────────────────────────────
-Future<Map<String, dynamic>> getSwapQuote({
-  required String fromAsset,
-  required String toAsset,
-  required double amount,
-}) async =>
-    (await _dio.get('/api/wallet/swap-quote', queryParameters: {
-      'from':   fromAsset,
-      'to':     toAsset,
+  // ─── Swap ─────────────────────────────────────────────────
+  Future<Map<String, dynamic>> getSwapQuote({
+    required String fromAsset,
+    required String toAsset,
+    required double amount,
+  }) async => (await _dio.get(
+    '/api/wallet/swap-quote',
+    queryParameters: {
+      'from': fromAsset,
+      'to': toAsset,
       'amount': amount.toString(),
-    })).data;
+    },
+  )).data;
 
-Future<Map<String, dynamic>> executeSwap({
-  required String fromAsset,
-  required String toAsset,
-  required double amount,
-}) async =>
-    (await _dio.post('/api/wallet/swap', data: {
-      'fromAsset': fromAsset,
-      'toAsset':   toAsset,
-      'amount':    amount,
-    })).data;
+  Future<Map<String, dynamic>> executeSwap({
+    required String fromAsset,
+    required String toAsset,
+    required double amount,
+  }) async => (await _dio.post(
+    '/api/wallet/swap',
+    data: {'fromAsset': fromAsset, 'toAsset': toAsset, 'amount': amount},
+  )).data;
   // // ─── User ────────────────────────────────────────────────
   // Future<Map<String, dynamic>> getMe() async =>
   //     (await _dio.get('/api/user/me')).data;
 
   Future<void> markBackedUp() async =>
-    await _dio.post('/api/auth/mark-backed-up');
-    
+      await _dio.post('/api/auth/mark-backed-up');
+
   // ─── Wallet (add below getAddress) ───────────────────────────────────────────
   Future<List<String>> getMnemonic() async {
     final res = await _dio.get('/api/auth/mnemonic');

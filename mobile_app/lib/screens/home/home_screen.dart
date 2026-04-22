@@ -130,26 +130,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               await ref.read(walletProvider.notifier).refresh();
               ref.invalidate(userProvider);
             },
-            child: SizedBox(
-              height:
-                  MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).padding.top -
-                  MediaQuery.of(context).padding.bottom,
-              child: Column(
-                children: [
-                  const Spacer(flex: 4),
-                  _buildBalanceLabel(),
-                  const SizedBox(height: 16),
-                  _buildTotalBalance(walletState),
-                  const SizedBox(height: 16),
-                  _buildPortfolioChip(walletState),
-                  const SizedBox(height: 32),
-                  _buildTransactionsLink(),
-                  const Spacer(flex: 4),
-                  _buildActionRow(),
-                  const SizedBox(height: 20),
-                ],
-              ),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height:
+                      MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom,
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 4),
+                      _buildBalanceLabel(),
+                      const SizedBox(height: 16),
+                      _buildTotalBalance(walletState),
+                      const SizedBox(height: 16),
+                      _buildPortfolioChip(walletState),
+                      const SizedBox(height: 32),
+                      _buildTransactionsLink(),
+                      const Spacer(flex: 4),
+                      _buildActionRow(),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -381,6 +386,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       heldAssets.add('assets/images/usdc.png');
     }
 
+    final assets = ['assets/images/stellar.png', 'assets/images/usdc.png'];
+
     return InkWell(
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
@@ -399,10 +406,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 16.0 + (heldAssets.length * 16.0),
+              width: 16.0 + (assets.length * 16.0),
               height: 26,
               child: Stack(
-                children: List.generate(heldAssets.length, (i) {
+                children: List.generate(assets.length, (i) {
                   return Positioned(
                     left: i * 16.0,
                     child: Container(
@@ -416,9 +423,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(24),
                           child: Image.asset(
-                            heldAssets[i],
+                            assets[i],
                             fit: BoxFit.contain,
-                            height: heldAssets[i] == "assets/images/stellar.png"
+                            height: assets[i] == "assets/images/stellar.png"
                                 ? 20
                                 : 24,
                           ),

@@ -196,4 +196,26 @@ class _DayFiAppState extends ConsumerState<DayFiApp>
   }
 }
 
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
+  (ref) => ThemeModeNotifier(),
+);
+
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier() : super(ThemeMode.dark) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('themeMode');
+    if (saved == 'light') state = ThemeMode.light;
+    else if (saved == 'system') state = ThemeMode.system;
+    else state = ThemeMode.dark; // default
+  }
+
+  Future<void> setTheme(ThemeMode mode) async {
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('themeMode', mode.name); // 'light'/'dark'/'system'
+  }
+}
