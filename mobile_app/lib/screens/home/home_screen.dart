@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+// import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/widgets/app_background.dart';
-import '../../models/asset.dart';
+// import '../../models/asset.dart';
 import '../../providers/wallet_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/api_service.dart';
@@ -124,32 +125,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.only(bottom: 32.0),
+          child: _buildActionRow(),
+        ),
         body: SafeArea(
+          bottom: false,
           child: RefreshIndicator(
             onRefresh: () async {
               await ref.read(walletProvider.notifier).refresh();
               ref.invalidate(userProvider);
             },
-            child: SizedBox(
-              height:
-                  MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).padding.top -
-                  MediaQuery.of(context).padding.bottom,
-              child: Column(
-                children: [
-                  const Spacer(flex: 4),
-                  _buildBalanceLabel(),
-                  const SizedBox(height: 16),
-                  _buildTotalBalance(walletState),
-                  const SizedBox(height: 16),
-                  _buildPortfolioChip(walletState),
-                  const SizedBox(height: 32),
-                  _buildTransactionsLink(),
-                  const Spacer(flex: 4),
-                  _buildActionRow(),
-                  const SizedBox(height: 20),
-                ],
-              ),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height - 154,
+
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 4),
+                      _buildBalanceLabel(),
+                      const SizedBox(height: 16),
+                      _buildTotalBalance(walletState),
+                      const SizedBox(height: 16),
+                      _buildPortfolioChip(walletState),
+                      const SizedBox(height: 32),
+                      _buildTransactionsLink(),
+                      const Spacer(flex: 5),
+
+                      // const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -235,7 +244,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Text(
             '\$—',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: GoogleFonts.bricolageGrotesque(
               fontSize: 64,
               fontWeight: FontWeight.w400,
               color: Theme.of(context).colorScheme.onSurface.withOpacity(.40),
@@ -282,20 +291,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.only(top: 0),
           child: Text(
             '\$',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: GoogleFonts.bricolageGrotesque(
               fontWeight: FontWeight.w400,
               color: Theme.of(context).colorScheme.onSurface.withOpacity(.60),
               letterSpacing: 0.4,
-              fontSize: 28,
+              fontSize: 26,
             ),
           ),
         ),
         Text(
           whole,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+          style: GoogleFonts.bricolageGrotesque(
             fontSize: 64,
             fontWeight: FontWeight.w400,
             color: Theme.of(context).colorScheme.onSurface.withOpacity(opacity),
@@ -307,13 +316,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.only(top: 12),
           child: Text(
             decimal,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: GoogleFonts.bricolageGrotesque(
               fontWeight: FontWeight.w400,
-              fontSize: 28,
+              fontSize: 32,
               color: Theme.of(
                 context,
               ).colorScheme.onSurface.withOpacity(opacity),
               letterSpacing: 0.4,
+              height:1.2
             ),
           ),
         ),
@@ -381,6 +391,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       heldAssets.add('assets/images/usdc.png');
     }
 
+    final assets = ['assets/images/stellar.png', 'assets/images/usdc.png'];
+
     return InkWell(
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
@@ -399,10 +411,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 16.0 + (heldAssets.length * 16.0),
+              width: 16.0 + (assets.length * 16.0),
               height: 26,
               child: Stack(
-                children: List.generate(heldAssets.length, (i) {
+                children: List.generate(assets.length, (i) {
                   return Positioned(
                     left: i * 16.0,
                     child: Container(
@@ -416,9 +428,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(24),
                           child: Image.asset(
-                            heldAssets[i],
+                            assets[i],
                             fit: BoxFit.contain,
-                            height: heldAssets[i] == "assets/images/stellar.png"
+                            height: assets[i] == "assets/images/stellar.png"
                                 ? 20
                                 : 24,
                           ),

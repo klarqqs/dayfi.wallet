@@ -1,9 +1,12 @@
 // lib/screens/portfolio/portfolio_screen.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http show get;
 import 'package:mobile_app/widgets/app_background.dart';
 import 'package:mobile_app/widgets/app_bottomsheet.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -73,63 +76,116 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
     };
   }
 
+  // Fixed _buildPoints — correct reverse reconstruction
   List<double> _buildPoints(
     List<Map<String, dynamic>> txs,
     String asset,
     double currentBalance,
     double xlmPrice,
+    Map<String, double> priceHistory, // pass in from provider
   ) {
     final cutoff = _periodStart;
+
+    // Filter to this asset's transactions within the period
     final filtered =
-        txs.where((t) => t['asset'] == asset).where((t) {
-          final dt = DateTime.tryParse(t['createdAt'] ?? '');
-          return dt != null && dt.isAfter(cutoff);
-        }).toList()..sort(
-          (a, b) => DateTime.parse(
-            a['createdAt'],
-          ).compareTo(DateTime.parse(b['createdAt'])),
-        );
+        txs
+            .where((t) {
+              final txAsset = t['asset'] as String? ?? '';
+              final type = t['type'] as String? ?? '';
+
+              // Include send/receive for this asset
+              if (txAsset == asset) return true;
+
+              // Include swaps that affect this asset
+              if (type == 'swap') {
+                final swapToAsset = t['swapToAsset'] as String? ?? '';
+                if (txAsset == asset || swapToAsset == asset) return true;
+              }
+              return false;
+            })
+            .where((t) {
+              final dt = DateTime.tryParse(t['createdAt'] ?? '');
+              return dt != null && dt.isAfter(cutoff);
+            })
+            .toList()
+          ..sort(
+            (a, b) => DateTime.parse(
+              b['createdAt'],
+            ).compareTo(DateTime.parse(a['createdAt'])),
+          ); // newest first
 
     if (filtered.isEmpty) {
+      // For XLM with no transactions: show price movement over period using history
+      if (asset == 'XLM' && priceHistory.isNotEmpty) {
+        return _buildPriceOnlyPoints(currentBalance, xlmPrice, priceHistory);
+      }
       final usd = asset == 'XLM' ? currentBalance * xlmPrice : currentBalance;
       return [usd, usd];
     }
 
+    // Walk backwards from current to reconstruct historical balances
     double running = currentBalance;
-    final reversed = filtered.reversed.toList();
-    final rawValues = <double>[];
+    final snapshots = <MapEntry<DateTime, double>>[];
+    snapshots.add(MapEntry(DateTime.now(), running));
 
-    for (final tx in reversed) {
-      final amt = (tx['amount'] as num).toDouble();
-      final type = tx['type'] as String;
-      final swapToAsset = (tx['swapToAsset'] as String?) ?? '';
+    for (final tx in filtered) {
+      final dt = DateTime.parse(tx['createdAt']);
+      final amt = (tx['amount'] as num).toDouble().abs();
+      final type = tx['type'] as String? ?? '';
+      final swapToAsset = tx['swapToAsset'] as String? ?? '';
 
-      // Determine if this transaction affects current asset
-      bool isOutgoing = false;
-
-      if (type == 'send') {
-        isOutgoing = true;
+      if (type == 'receive') {
+        running -= amt; // before receive, balance was lower
+      } else if (type == 'send') {
+        running += amt; // before send, balance was higher
       } else if (type == 'swap') {
-        // For swaps: check swapToAsset to determine direction
-        // If swapToAsset matches current asset, it's incoming (receive)
-        // Otherwise it's outgoing (send)
-        isOutgoing = (swapToAsset != asset);
+        if (swapToAsset == asset) {
+          // This asset was received in swap
+          running -= amt;
+        } else if (tx['asset'] == asset) {
+          // This asset was spent in swap
+          running += amt;
+        }
       }
 
-      if (isOutgoing) {
-        running += amt;
-      } else {
-        running -= amt;
-      }
-      rawValues.add(running.clamp(0, double.infinity));
+      running = running.clamp(0, double.infinity);
+      snapshots.add(MapEntry(dt, running));
     }
 
-    final chronological = rawValues.reversed.toList()..add(currentBalance);
-    return chronological.map((b) {
-      return asset == 'XLM' ? b * xlmPrice : b;
+    // Reverse to chronological, convert to USD
+    final chronological = snapshots.reversed.toList();
+    return chronological.map((e) {
+      final bal = e.value;
+      if (asset == 'XLM') {
+        // Use historical price for that date if available
+        final key =
+            '${e.key.year}-${e.key.month.toString().padLeft(2, '0')}-${e.key.day.toString().padLeft(2, '0')}';
+        final historicalPrice = priceHistory[key] ?? xlmPrice;
+        return bal * historicalPrice;
+      }
+      return bal; // USDC is always $1
     }).toList();
   }
 
+  // For XLM with no transactions: pure price movement chart
+  List<double> _buildPriceOnlyPoints(
+    double balance,
+    double currentPrice,
+    Map<String, double> priceHistory,
+  ) {
+    final cutoff = _periodStart;
+    final relevant = priceHistory.entries.where((e) {
+      final dt = DateTime.tryParse(e.key);
+      return dt != null && dt.isAfter(cutoff);
+    }).toList()..sort((a, b) => a.key.compareTo(b.key));
+
+    if (relevant.isEmpty)
+      return [balance * currentPrice, balance * currentPrice];
+    return relevant.map((e) => balance * e.value).toList()
+      ..add(balance * currentPrice);
+  }
+
+  // Fixed _computeChange — uses actual first vs last
   double _computeChange(List<double> points) {
     if (points.length < 2) return 0.0;
     final first = points.first;
@@ -161,6 +217,34 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
       child: _AssetDetailSheet(detail: detail),
     );
   }
+
+  final _xlmPriceHistoryProvider = FutureProvider<Map<String, double>>((
+    ref,
+  ) async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.coingecko.com/api/v3/coins/stellar/market_chart?vs_currency=usd&days=30&interval=daily',
+            ),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final prices = data['prices'] as List;
+        // Each entry: [timestamp_ms, price]
+        final result = <String, double>{};
+        for (final p in prices) {
+          final dt = DateTime.fromMillisecondsSinceEpoch((p[0] as num).toInt());
+          final key =
+              '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+          result[key] = (p[1] as num).toDouble();
+        }
+        return result;
+      }
+    } catch (_) {}
+    return {};
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +299,9 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
     WalletState w,
     List<Map<String, dynamic>> txs,
   ) {
+    final priceHistoryAsync = ref.watch(_xlmPriceHistoryProvider);
+    final priceHistory = priceHistoryAsync.value ?? {};
+
     const xlmReserve = 2.0;
     final xlmPrice = w.xlmPriceUSD;
 
@@ -226,8 +313,20 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
     final usdcUSD = w.usdcBalance;
     final totalUSD = xlmUSD + usdcUSD;
 
-    final xlmPoints = _buildPoints(txs, 'XLM', xlmDisplayBalance, xlmPrice);
-    final usdcPoints = _buildPoints(txs, 'USDC', w.usdcBalance, 1.0);
+    final xlmPoints = _buildPoints(
+      txs,
+      'XLM',
+      xlmDisplayBalance,
+      xlmPrice,
+      priceHistory,
+    );
+    final usdcPoints = _buildPoints(
+      txs,
+      'USDC',
+      w.usdcBalance,
+      1.0,
+      priceHistory,
+    );
     final combined = _combinePoints(xlmPoints, usdcPoints);
 
     final changePct = _computeChange(combined);

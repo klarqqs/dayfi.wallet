@@ -31,7 +31,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   final _selectedAssets = <String>{};
   final _selectedTypes = <String>{};
-  int _sortOption = 0; // 0: date desc, 1: amount desc, 2: amount asc
+  final int _sortOption = 0;
   String? _assetFilter;
   String? _typeFilter;
 
@@ -278,9 +278,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.swap_horiz,
-            size: 48,
+          SvgPicture.asset(
+            "assets/icons/svgs/transfer.svg",
+            height: 48,
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.050),
           ),
           const SizedBox(height: 16),

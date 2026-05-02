@@ -1,4 +1,3 @@
-// src/index.js
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,6 +8,7 @@ import authRoutes        from './routes/auth.js';
 import walletRoutes      from './routes/wallet.js';
 import userRoutes        from './routes/user.js';
 import transactionRoutes from './routes/transactions.js';
+import paymentsRoutes    from './routes/payments.js';
 import sep10Routes       from './routes/sep10.js';
 import sep24Routes       from './routes/sep24.js';
 import sep38Routes       from './routes/sep38.js';
@@ -18,8 +18,9 @@ import { errorHandler }  from './middleware/errorHandler.js';
 dotenv.config();
 
 const app  = express();
-const PORT = process.env.PORT || 3001;
-const NETWORK = process.env.STELLAR_NETWORK || 'mainnet'; // Default to mainnet for safety
+app.set('trust proxy', 1);
+const PORT    = process.env.PORT || 3001;
+const NETWORK = process.env.STELLAR_NETWORK || 'mainnet';
 
 // ─── Security ────────────────────────────────────────────────────────────────
 
@@ -29,25 +30,25 @@ app.use(cors({
     process.env.FRONTEND_URL || 'https://dayfi.me',
     'http://localhost:3000',
     'http://localhost:5173',
-    /\.dayfi\.me$/, // Allow subdomains
+    /\.dayfi\.me$/,
   ],
   credentials: true,
 }));
 
-// Rate limiters - Slightly stricter for Mainnet
 const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300 });
-const authLimiter   = rateLimit({ 
-  windowMs: 15 * 60 * 1000, 
+const authLimiter   = rateLimit({
+  windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: 'Too many auth attempts, try again later.' }
+  message: { error: 'Too many auth attempts, try again later.' },
 });
 const sep10Limiter  = rateLimit({ windowMs: 60 * 1000, max: 30 });
 
 app.use(globalLimiter);
-app.use(express.json({ limit: '5mb' })); // Reduced limit for production
+app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ─── SEP-01: stellar.toml ─────────────────────────────────────────────────────
+// ─── SEP-01 ───────────────────────────────────────────────────────────────────
+
 app.use('/.well-known', tomlRoutes);
 
 // ─── Health ───────────────────────────────────────────────────────────────────
@@ -60,12 +61,13 @@ app.get('/health', (_, res) => res.json({
   timestamp: new Date().toISOString(),
 }));
 
-// ─── App API ─────────────────────────────────────────────────────────────────
+// ─── App API ──────────────────────────────────────────────────────────────────
 
 app.use('/api/auth',         authLimiter, authRoutes);
 app.use('/api/wallet',       walletRoutes);
 app.use('/api/user',         userRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/payments',     paymentsRoutes);
 
 // ─── SEP Routes ───────────────────────────────────────────────────────────────
 

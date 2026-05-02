@@ -33,6 +33,20 @@ const ASSET_CONFIG = {
       },
     ],
   },
+  NGNT: {
+    name: 'Nigerian Naira Token',
+    emoji: '🇳🇬',
+    description: 'NGN-backed stablecoin on Stellar',
+    regulated: true,
+    issuers: [
+      {
+        key: 'stellar_ngnt',
+        label: 'AZA Finance (Stellar)',
+        description: 'Issued by AZA Finance on Stellar Network',
+        emoji: '⭐',
+      },
+    ],
+  },
   XLM: {
     name: 'Stellar Lumens',
     emoji: '🌟',
@@ -47,40 +61,6 @@ const ASSET_CONFIG = {
       },
     ],
   },
-  // BTC: {
-  //   name: 'Bitcoin',
-  //   emoji: '🟠',
-  //   description: 'Bitcoin via bridge',
-  //   regulated: false,
-  //   issuers: [
-  //     {
-  //       key: 'BTC',
-  //       label: 'Stellar Bridge',
-  //       description: 'Bitcoin on Stellar',
-  //       emoji: '🟠',
-  //     },
-  //     {
-  //       key: 'BTC_ALT',
-  //       label: 'Alternative Bridge',
-  //       description: 'Bitcoin alternate issuance',
-  //       emoji: '🟠',
-  //     },
-  //   ],
-  // },
-  // GOLD: {
-  //   name: 'Gold Token',
-  //   emoji: '🥇',
-  //   description: 'Tokenized gold',
-  //   regulated: false,
-  //   issuers: [
-  //     {
-  //       key: 'stellar_gold',
-  //       label: 'Stellar',
-  //       description: 'Gold token on Stellar',
-  //       emoji: '🥇',
-  //     },
-  //   ],
-  // },
 };
 
 // ─── Shared Price Cache ──────────────────────────────────────────────────────
@@ -99,12 +79,12 @@ async function getLivePrices() {
     _priceCache = {
       USDC: data['usd-coin']?.usd ?? 1.0,
       XLM:  data['stellar']?.usd  ?? 0.16,
-      GOLD: data['meld-gold']?.usd ?? 65.0, // Approximate gold price per gram
+      NGNT: 0.00065, // ~1 NGN in USD (fixed peg, not on CoinGecko)
     };
     _priceCacheTime = now;
     return _priceCache;
   } catch {
-    return { USDC: 1.0, XLM: 0.16, GOLD: 65.0 };
+    return { USDC: 1.0, XLM: 0.16, NGNT: 0.00065 };
   }
 }
 
@@ -134,6 +114,7 @@ router.get('/networks', authenticate, (req, res) => {
   // Assets available on Stellar
   const assets = {
     'USDC': ['stellar'],
+    'NGNT': ['stellar'],
     'XLM': ['stellar'],
   };
 
@@ -278,7 +259,10 @@ router.get('/address', authenticate, (req, res) => {
   res.json({
     stellarAddress: req.user.stellarPublicKey,
     dayfiUsername: `${req.user.username}@dayfi.me`,
-    assets: [{ code: 'USDC', name: 'USD Coin', issuer: ISSUERS.USDC }],
+    assets: [
+      { code: 'USDC', name: 'USD Coin', issuer: ISSUERS.USDC },
+      { code: 'NGNT', name: 'Nigerian Naira Token', issuer: ISSUERS.NGNT },
+    ],
   });
 });
 
@@ -323,7 +307,8 @@ router.get('/check-trustlines', authenticate, async (req, res) => {
     const balances = account.balances || [];
     const hasTrustlines = {
       USDC: balances.some(b => b.asset_code === 'USDC'),
-      XLM: true, // Always native
+      NGNT: balances.some(b => b.asset_code === 'NGNT'),
+      XLM: true,
     };
 
     const allReady = Object.values(hasTrustlines).every(v => v);

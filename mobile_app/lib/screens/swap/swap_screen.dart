@@ -613,26 +613,29 @@ class _SwapScreenState extends ConsumerState<SwapScreen> {
 
                 // Empty wallet warning
                 if (walletEmpty)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset(
-                        "assets/icons/svgs/alert2.svg",
-                        color: const Color.fromARGB(255, 232, 172, 9),
-                        height: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Your wallet has no funds to swap.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 18.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          "assets/icons/svgs/alert2.svg",
                           color: const Color.fromARGB(255, 232, 172, 9),
-                          fontSize: 14,
-                          letterSpacing: -0.2,
+                          height: 16,
                         ),
-                      ),
-                    ],
-                  ).animate().fadeIn(),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Your wallet has no funds to swap.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color.fromARGB(255, 232, 172, 9),
+                            fontSize: 14,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(),
+                  ),
                 // FROM label
                 Text('You Pay', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 8),

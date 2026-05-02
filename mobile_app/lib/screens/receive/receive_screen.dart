@@ -2,41 +2,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/widgets/app_background.dart';
 import 'package:mobile_app/widgets/app_bottomsheet.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../providers/wallet_provider.dart';
 import '../../services/api_service.dart';
-
-// ─── Emoji mapping for emojis that come from backend ────────────────────────────
+import '../../services/payments_service.dart';
 
 final Map<String, String> _assetEmojis = {
   'USDC': 'assets/images/usdc.png',
   'XLM': 'assets/images/stellar.png',
-};
-
-final Map<String, String> _networkEmojis = {
-  'stellar': 'assets/images/stellar.png',
+  'NGNT': 'assets/images/ng.png',
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-class ReceiveScreen extends StatefulWidget {
+class ReceiveScreen extends ConsumerStatefulWidget {
   final String? initialAsset;
   const ReceiveScreen({super.key, this.initialAsset});
 
   @override
-  State<ReceiveScreen> createState() => _ReceiveScreenState();
+  ConsumerState<ReceiveScreen> createState() => _ReceiveScreenState();
 }
 
-class _ReceiveScreenState extends State<ReceiveScreen> {
-  int _selectedTab = 0; // 0 = Blockchains, 1 = Username
+class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
+  int _selectedTab = 0; // 0 = Blockchains, 1 = Username, 2 = Virtual Account
 
   Map<String, dynamic>? _addressData;
   Map<String, dynamic>? _rawAssets;
-  Map<String, dynamic>? _rawNetworks;
   bool _loading = true;
 
   String? _selectedAssetCode;
@@ -58,7 +55,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      // Fetch both address and network config in parallel
       final results = await Future.wait([
         apiService.getAddress(),
         apiService.getNetworkConfig(),
@@ -70,42 +66,24 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       if (mounted) {
         setState(() {
           _addressData = addressData;
-          // Parse assets map: { "USDC": ["stellar"], "XLM": ["stellar"] }
           _rawAssets =
               configData['assets'] as Map<String, dynamic>? ??
               {
                 'USDC': ['stellar'],
                 'XLM': ['stellar'],
-              };
-          // Parse networks map: { "stellar": { "name": "Stellar", ... } }
-          _rawNetworks =
-              configData['networks'] as Map<String, dynamic>? ??
-              {
-                'stellar': {
-                  'name': 'Stellar Network',
-                  'emoji': 'assets/images/stellar.png',
-                  'description': 'Fast, low-cost payments on Stellar',
-                },
+                'NGNT': ['stellar'],
               };
           _loading = false;
         });
       }
     } catch (e) {
-      print('Error loading wallet config: $e');
       if (mounted) {
         setState(() {
           _loading = false;
-          // Set defaults on error
           _rawAssets = {
             'USDC': ['stellar'],
             'XLM': ['stellar'],
-          };
-          _rawNetworks = {
-            'stellar': {
-              'name': 'Stellar Network',
-              'emoji': 'assets/images/stellar.png',
-              'description': 'Fast, low-cost payments on Stellar',
-            },
+            'NGNT': ['stellar'],
           };
         });
       }
@@ -121,10 +99,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
   void _share(String text) => Share.share(text);
 
-  /// Map network key to the corresponding address field
   String _getAddressForNetwork() {
-    if (_selectedNetworkKey == null) return '';
-
     switch (_selectedNetworkKey) {
       case 'stellar':
         return _addressData?['stellarAddress'] ?? '';
@@ -133,24 +108,16 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       case 'solana':
         return _addressData?['solanaAddress'] ?? '';
       default:
-        // Ethereum, Arbitrum, Polygon, Avalanche all use EVM address
         return _addressData?['evmAddress'] ?? '';
     }
   }
 
-  // ─── Currency bottom sheet ───────────────────────────────
-
   void _showCurrencyPicker() {
     if (_rawAssets == null) return;
-
     final currencies = _rawAssets!.keys.toList();
 
     showDayFiBottomSheet(
       context: context,
-      // backgroundColor: Theme.of(context).colorScheme.surface,
-      // shape: const RoundedRectangleBorder(
-      //   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      // ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -180,10 +147,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
             ),
             const SizedBox(height: 32),
             ...currencies.map((assetCode) {
-              final emoji =
-                  _assetEmojis[assetCode] ?? 'assets/images/default.png';
-              final isSelected = _selectedAssetCode == assetCode;
-
+              final emoji = _assetEmojis[assetCode] ?? 'assets/images/usdc.png';
               return InkWell(
                 splashColor: Colors.transparent,
                 highlightColor: Colors.transparent,
@@ -206,13 +170,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                       context,
                     ).colorScheme.primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(14),
-                    // border: Border.all(
-                    //   color: isSelected
-                    //       ? Theme.of(ctx).colorScheme.primary.withOpacity(0.3)
-                    //       : Theme.of(
-                    //           ctx,
-                    //         ).colorScheme.onSurface.withOpacity(0.1),
-                    // ),
                   ),
                   child: Row(
                     children: [
@@ -229,12 +186,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const Spacer(),
-                      // if (isSelected)
-                      //   Icon(
-                      //     Icons.check_circle,
-                      //     color: Theme.of(ctx).colorScheme.primary,
-                      //     size: 20,
-                      //   ),
                     ],
                   ),
                 ),
@@ -246,126 +197,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       ),
     );
   }
-
-  // ─── Network bottom sheet ────────────────────────────────
-  // COMMENTED OUT: Network is always Stellar
-  /* void _showNetworkPicker() {
-    if (_selectedAssetCode == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a currency first')),
-      );
-      return;
-    }
-
-    final supportedNetworks =
-        _rawAssets?[_selectedAssetCode] as List<dynamic>? ?? [];
-
-    showDayFiBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Opacity(opacity: 0, child: Icon(Icons.close)),
-                Text(
-                  'Choose Network',
-                  style: Theme.of(ctx).textTheme.titleLarge!.copyWith(
-                    fontSize: 16,
-                    letterSpacing: -.1,
-                  ),
-                ),
-                InkWell(
-  splashColor: Colors.transparent,
-  highlightColor: Colors.transparent,
-  hoverColor: Colors.transparent,
-                  onTap: () => Navigator.pop(ctx),
-                  child: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            ...supportedNetworks.map((networkKey) {
-              final networkInfo =
-                  _rawNetworks?[networkKey] as Map<String, dynamic>? ?? {};
-              final networkName = networkInfo['name'] ?? networkKey;
-              final networkEmoji = _networkEmojis[networkKey] ?? '🔗';
-              final currencyEmoji =
-                  _assetEmojis[_selectedAssetCode] ??
-                  'assets/images/default.png';
-              final isSelected = _selectedNetworkKey == networkKey;
-
-              return InkWell(
-  splashColor: Colors.transparent,
-  highlightColor: Colors.transparent,
-  hoverColor: Colors.transparent,
-                onTap: () {
-                  setState(() => _selectedNetworkKey = networkKey);
-                  Navigator.pop(ctx);
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(54),
-                            child: Image.asset(
-                              currencyEmoji,
-                              height: _getEmojiHeight(currencyEmoji),
-                            ),
-                          ),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(54),
-                            child: Image.asset(
-                              networkEmoji,
-                              height: _getEmojiHeight(networkEmoji) / 2.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 14),
-                      Text(
-                        networkName,
-                        style: Theme.of(ctx).textTheme.titleMedium,
-                      ),
-                      const Spacer(),
-                      // if (isSelected)
-                      //   Icon(
-                      //     Icons.check_circle,
-                      //     color: Theme.of(ctx).colorScheme.primary,
-                      //     size: 20,
-                      //   ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  } */
 
   // ─── Build ────────────────────────────────────────────────
 
@@ -404,7 +235,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      // Tab switcher
+
+                      // ── Tab switcher (3 tabs) ─────────────────────────
                       Container(
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
@@ -422,9 +254,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                               onTap: () => setState(() => _selectedTab = 0),
                             ),
                             _Tab(
-                              label: 'dayfi.me Username',
+                              label: 'dayfi.me',
                               selected: _selectedTab == 1,
                               onTap: () => setState(() => _selectedTab = 1),
+                            ),
+                            _Tab(
+                              label: 'Bank',
+                              selected: _selectedTab == 2,
+                              onTap: () => setState(() => _selectedTab = 2),
                             ),
                           ],
                         ),
@@ -434,6 +271,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
                       if (_selectedTab == 0) _buildBlockchainTab(),
                       if (_selectedTab == 1) _buildUsernameTab(),
+                      if (_selectedTab == 2) _buildVirtualAccountTab(),
                     ],
                   ),
                 ),
@@ -442,7 +280,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     );
   }
 
-  // ─── Blockchain tab ───────────────────────────────────────
+  // ─── Tab 0: Blockchain ────────────────────────────────────
 
   Widget _buildBlockchainTab() {
     final address = _getAddressForNetwork();
@@ -468,7 +306,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         ).animate().fadeIn(delay: 100.ms),
         const SizedBox(height: 24),
 
-        // Currency picker only
         Center(
           child: SizedBox(
             width: (MediaQuery.of(context).size.width * .5) - 8,
@@ -489,14 +326,13 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
         const SizedBox(height: 18),
 
-        // QR + address — show when both selected
         if (!ready) ...[
           Center(
             child: Column(
               children: [
                 const SizedBox(height: 24),
                 SvgPicture.asset(
-                  "assets/images/qrcode.svg",
+                  'assets/images/qrcode.svg',
                   height: 80,
                   color: Theme.of(
                     context,
@@ -513,7 +349,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Once you select a currency and network,\nyour QR code and wallet address will\nappear right here.',
+                  'Once you select a currency,\nyour QR code and wallet address will\nappear right here.',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),
@@ -552,7 +388,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     );
   }
 
-  // ─── Username tab ─────────────────────────────────────────
+  // ─── Tab 1: Username ──────────────────────────────────────
 
   Widget _buildUsernameTab() {
     final username = _addressData?['dayfiUsername'] ?? '';
@@ -590,12 +426,78 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         _AddressBox(
           text: username,
           onCopy: () => _copy(username),
-        ).animate().fadeIn(delay: 0.ms),
+        ).animate().fadeIn(),
         const SizedBox(height: 32),
         _ActionButtons(
           onShare: () => _share('Send me USDC at $username'),
           onCopy: () => _copy(username),
-        ).animate().fadeIn(delay: 0.ms),
+        ).animate().fadeIn(),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // ─── Tab 2: Virtual Account (NGN bank transfer) ───────────
+
+  Widget _buildVirtualAccountTab() {
+    final wallet = ref.watch(walletProvider);
+
+    return Column(
+      children: [
+        Text(
+          'Receive via Bank Transfer',
+          style: Theme.of(context).textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ).animate().fadeIn(),
+        const SizedBox(height: 8),
+        Text(
+          'Send NGN from any Nigerian bank to this account.',
+          style: Theme.of(context).textTheme.bodySmall!.copyWith(
+            fontSize: 14,
+            letterSpacing: -.1,
+            height: 1.2,
+          ),
+          textAlign: TextAlign.center,
+        ).animate().fadeIn(delay: 100.ms),
+        const SizedBox(height: 28),
+
+        if (wallet.isLoading)
+          const Padding(
+            padding: EdgeInsets.only(top: 40),
+            child: CircularProgressIndicator(),
+          )
+        else if (!wallet.virtualAccountExists)
+          _BvnSetupCard(
+            onCreated: () =>
+                ref.read(walletProvider.notifier).loadVirtualAccount(),
+          ).animate().fadeIn(delay: 100.ms)
+        else ...[
+          _AccountDetailRow(
+            label: 'Bank',
+            value: wallet.virtualAccountBank ?? '',
+          ).animate().fadeIn(delay: 100.ms),
+          const SizedBox(height: 10),
+          _AccountDetailRow(
+            label: 'Account Number',
+            value: wallet.virtualAccountNumber ?? '',
+          ).animate().fadeIn(delay: 130.ms),
+          const SizedBox(height: 10),
+          _AccountDetailRow(
+            label: 'Account Name',
+            value: wallet.virtualAccountName ?? '',
+          ).animate().fadeIn(delay: 160.ms),
+          const SizedBox(height: 32),
+          _ActionButtons(
+            onShare: () => _share(
+              'Pay me NGN:\n'
+              'Bank: ${wallet.virtualAccountBank}\n'
+              'Account: ${wallet.virtualAccountNumber}\n'
+              'Name: ${wallet.virtualAccountName}',
+            ),
+            onCopy: () => _copy(wallet.virtualAccountNumber ?? ''),
+          ).animate().fadeIn(delay: 180.ms),
+        ],
+
         const SizedBox(height: 32),
       ],
     );
@@ -638,7 +540,7 @@ class _Tab extends StatelessWidget {
                 ? Theme.of(context).textTheme.bodyLarge?.color!.withOpacity(.85)
                 : null,
             fontWeight: FontWeight.w500,
-            fontSize: 14,
+            fontSize: 13,
             letterSpacing: -.1,
           ),
         ),
@@ -650,7 +552,6 @@ class _Tab extends StatelessWidget {
 class _DropdownBox extends StatelessWidget {
   final String? emoji;
   final String label;
-
   const _DropdownBox({this.emoji, required this.label});
 
   @override
@@ -816,6 +717,202 @@ class _ActionButtons extends StatelessWidget {
                 fontSize: 15,
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Account Detail Row ───────────────────────────────────────────────────────
+
+class _AccountDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _AccountDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              letterSpacing: -.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── BVN Setup Card ───────────────────────────────────────────────────────────
+
+class _BvnSetupCard extends StatefulWidget {
+  final VoidCallback onCreated;
+  const _BvnSetupCard({required this.onCreated});
+
+  @override
+  State<_BvnSetupCard> createState() => _BvnSetupCardState();
+}
+
+class _BvnSetupCardState extends State<_BvnSetupCard> {
+  final _bvnCtrl = TextEditingController();
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _bvnCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final bvn = _bvnCtrl.text.trim();
+    if (bvn.length != 11 || !RegExp(r'^\d{11}$').hasMatch(bvn)) {
+      setState(() => _error = 'BVN must be exactly 11 digits');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await paymentsService.createVirtualAccount(bvn);
+      widget.onCreated();
+    } catch (e) {
+      setState(() => _error = apiService.parseError(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 18.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SvgPicture.asset(
+                "assets/icons/svgs/alert2.svg", // swap for your info icon
+                color: const Color(0xFF60A5FA), // blue tint
+                height: 24,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your BVN is used to create a dedicated virtual account for NGN deposits. It is never stored or shared.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF60A5FA),
+                  fontSize: 13,
+                  letterSpacing: -0.2,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ).animate().fadeIn(),
+        ),
+
+        TextField(
+          controller: _bvnCtrl,
+          keyboardType: TextInputType.number,
+          maxLength: 11,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(.85),
+            fontSize: 15,
+            letterSpacing: -.1,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Enter your BVN (11 digits)',
+            hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(.35),
+              fontSize: 15,
+              letterSpacing: -.1,
+            ),
+            fillColor: Theme.of(
+              context,
+            ).textTheme.bodySmall?.color?.withOpacity(0.1),
+            counterText: '',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 14,
+            ),
+          ),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: Text(
+              _error!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(.9),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    'Create Bank Account',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 15,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(.9),
+                    ),
+                  ),
           ),
         ),
       ],

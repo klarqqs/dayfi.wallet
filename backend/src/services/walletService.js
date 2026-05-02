@@ -29,21 +29,18 @@ export const ISSUERS = {
     (isTestnet
       ? "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
       : "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"),
-  // TODO: Fix GOLD issuer - currently invalid
-  // GOLD:
-  //   process.env.GOLD_ISSUER ||
-  //   (isTestnet
-  //     ? "GDPJALI4AZKUU2W426U5WKMAT6CN3AJRPIIRYR2YM54TL2GDWO5O2MZM"
-  //     : "GDBE77Z976GZ66WQSBCYI3S7A67T5OVCB57FPR35CCV72L7DQXNGA476"),
+  NGNT:
+    process.env.NGNT_ISSUER ||
+    "GAWODAROMJ33V5YDFY3NPYTHVYQG7MJXVJ2ND3AOGIHYRWINES6ACCPD",
 };
 
 export const ASSETS = {
   USDC: new StellarSdk.Asset("USDC", ISSUERS.USDC),
-  // GOLD: new StellarSdk.Asset("GOLD", ISSUERS.GOLD),
+  NGNT: new StellarSdk.Asset("NGNT", ISSUERS.NGNT),
   XLM: StellarSdk.Asset.native(),
 };
 
-export const SUPPORTED_ASSETS = ["USDC", "XLM"]; // Temporarily removed GOLD
+export const SUPPORTED_ASSETS = ["USDC", "NGNT", "XLM"];
 
 // ─── Encryption ───────────────────────────────────────────────────────────────
 
@@ -147,13 +144,12 @@ export async function addAllTrustlines(keypair) {
           limit: "1000000",
         }),
       )
-      // TODO: Add GOLD trustline back once issuer is fixed
-      // .addOperation(
-      //   StellarSdk.Operation.changeTrust({
-      //     asset: ASSETS.GOLD,
-      //     limit: "1000000",
-      //   })
-      // )
+      .addOperation(
+        StellarSdk.Operation.changeTrust({
+          asset: ASSETS.NGNT,
+          limit: "1000000",
+        }),
+      )
       .setTimeout(30);
 
     const tx = txBuilder.build();
@@ -180,24 +176,22 @@ export async function getWalletBalances(publicKey) {
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
 
-    if (res.status === 404) return { USDC: 0, XLM: 0 };
+    if (res.status === 404) return { USDC: 0, NGNT: 0, XLM: 0 };
     const account = await res.json();
-    const balances = { USDC: 0, XLM: 0 };
+    const balances = { USDC: 0, NGNT: 0, XLM: 0 };
 
     for (const b of account.balances) {
       if (b.asset_type === "native") {
         balances.XLM = parseFloat(b.balance);
       } else if (b.asset_code === "USDC" && b.asset_issuer === ISSUERS.USDC) {
         balances.USDC = parseFloat(b.balance);
+      } else if (b.asset_code === "NGNT" && b.asset_issuer === ISSUERS.NGNT) {
+        balances.NGNT = parseFloat(b.balance);
       }
-      // TODO: Add GOLD balance tracking back once issuer is fixed
-      // else if (b.asset_code === "GOLD" && b.asset_issuer === ISSUERS.GOLD) {
-      //   balances.GOLD = parseFloat(b.balance);
-      // }
     }
     return balances;
   } catch (err) {
-    return { USDC: 0, XLM: 0 };
+    return { USDC: 0, NGNT: 0, XLM: 0 };
   }
 }
 
@@ -740,7 +734,65 @@ export async function fundNewUserWallet(userPublicKey, userId = null) {
   }
 }
 
-// ─── Send from Master Wallet (Admin) ──────────────────────────────────────────
+// ─── Send any asset from Master Wallet (used by payments/settlement) ─────────
+
+export async function sendAssetFromMasterWallet(
+  recipientAddress,
+  amount,
+  assetCode = "XLM",
+  memo = "",
+) {
+  const masterPublicKey = process.env.MASTER_WALLET_PUBLIC_KEY;
+  const masterSecretEncrypted = process.env.MASTER_WALLET_SECRET_KEY;
+
+  if (!masterPublicKey || !masterSecretEncrypted)
+    throw new Error("Master wallet not configured");
+
+  const amountNum = parseFloat(amount);
+  if (isNaN(amountNum) || amountNum <= 0) throw new Error("Invalid amount");
+
+  const normalizedAsset = String(assetCode || "XLM").toUpperCase();
+  const asset =
+    normalizedAsset === "XLM" ? StellarSdk.Asset.native() : ASSETS[normalizedAsset];
+  if (!asset) throw new Error(`Unsupported asset for master settlement: ${normalizedAsset}`);
+
+  if (!recipientAddress || recipientAddress.length !== 56 || !recipientAddress.startsWith("G"))
+    throw new Error("Invalid recipient address");
+
+  const masterSecret = decrypt(masterSecretEncrypted);
+  const masterKeypair = StellarSdk.Keypair.fromSecret(masterSecret);
+  const masterAccount = await server.loadAccount(masterPublicKey);
+
+  try {
+    await server.loadAccount(recipientAddress);
+  } catch {
+    throw new Error("Recipient account does not exist on network");
+  }
+
+  const txBuilder = new StellarSdk.TransactionBuilder(masterAccount, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase,
+  });
+
+  txBuilder.addOperation(
+    StellarSdk.Operation.payment({
+      destination: recipientAddress,
+      asset,
+      amount: amountNum.toString(),
+    }),
+  );
+
+  if (memo) txBuilder.addMemo(StellarSdk.Memo.text(memo.substring(0, 28)));
+
+  const tx = txBuilder.setTimeout(30).build();
+  tx.sign(masterKeypair);
+  const result = await server.submitTransaction(tx);
+
+  console.log(`✅ Sent ${amountNum} ${normalizedAsset} from master to ${recipientAddress}`);
+  return { hash: result.hash, amount: amountNum, asset: normalizedAsset, recipient: recipientAddress };
+}
+
+// ─── Send from Master Wallet (Admin — XLM only legacy wrapper) ───────────────
 
 export async function sendFromMasterWallet(
   recipientAddress,
